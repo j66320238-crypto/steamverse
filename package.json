@@ -1,0 +1,14 @@
+{
+  "name": "streamverse",
+  "version": "5.2.0",
+  "description": "StreamVerse — Movies, TV Shows & Anime. Zero-dependency Node.js.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
