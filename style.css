@@ -1034,3 +1034,46 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   .brave-stores{grid-template-columns:1fr;max-width:270px}
   .developer-contact{flex-direction:column;gap:8px}
 }
+
+/* ============================================================
+   YouTube-style recommendation dock
+   A compact strip stays below the playing video; the same data is
+   rendered on the next full-screen snap page for swipe-up browsing.
+   ============================================================ */
+.player-inline-recommendations{position:absolute;left:14px;right:14px;bottom:62px;z-index:8;padding:11px 12px 43px;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:linear-gradient(180deg,rgba(8,9,16,.78),rgba(8,9,16,.96));box-shadow:0 18px 50px rgba(0,0,0,.42);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:recDockIn .35s var(--ease)}
+.player-stage.has-inline-recs .feed-swipe-hint{opacity:0;pointer-events:none;animation:none}
+.inline-rec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.inline-rec-head>div{display:flex;align-items:center;gap:8px;min-width:0}
+.inline-rec-head strong{font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inline-rec-kicker{font-size:9px;letter-spacing:1.4px;color:#ff8792;font-weight:900;white-space:nowrap}
+.inline-rec-open{color:#7dd3fc;font-size:11px;font-weight:800;white-space:nowrap;padding:4px 0}
+.inline-rec-open:hover{color:#fff}
+.inline-rec-row{display:flex;gap:9px;overflow-x:auto;scrollbar-width:none;padding:2px 1px}
+.inline-rec-row::-webkit-scrollbar{display:none}
+.inline-rec-card{flex:0 0 78px;display:block;min-width:0;padding:0;border:1px solid rgba(255,255,255,.13);border-radius:9px;overflow:hidden;background:rgba(255,255,255,.07);color:#fff;text-align:left;cursor:pointer;transition:transform .2s,border-color .2s,background .2s}
+.inline-rec-card:hover,.inline-rec-card:focus-visible{transform:translateY(-3px);border-color:#38bdf8;background:rgba(255,255,255,.14)}
+.inline-rec-card img{width:100%;aspect-ratio:2/3;object-fit:cover;background:#171923}
+.inline-rec-name{padding:5px 6px 7px;font-size:10px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inline-rec-type{display:block;padding:0 6px 6px;font-size:8px;letter-spacing:.55px;text-transform:uppercase;color:#94a3b8;font-weight:800}
+@keyframes recDockIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(max-width:760px){
+  .player-inline-recommendations{left:9px;right:9px;bottom:67px;padding:9px 9px 39px;border-radius:13px}
+  .inline-rec-card{flex-basis:70px}
+  .inline-rec-head{margin-bottom:6px}
+  .inline-rec-head strong{font-size:11px}
+  .inline-rec-kicker{font-size:8px}
+}
+.rec-type{display:block;padding:0 7px 7px;font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-2);font-weight:800}
+.player-swipe-zone{position:absolute;left:0;right:0;bottom:0;height:86px;z-index:9;touch-action:none;background:transparent}
+.player-nextsrc{z-index:11}
+.player-inline-recommendations{z-index:11}
+.feed-swipe-hint{z-index:12}
+@media(max-width:760px){.player-swipe-zone{height:94px}}
+
+/* Deployment-safe player bounds. The explicit viewport rules also recover
+   cleanly when a browser had cached the older half-height player CSS. */
+.player-overlay{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;margin:0!important;padding:0!important;left:0!important;right:0!important;top:0!important;bottom:0!important}
+.player-overlay>.player{width:100%!important;height:100%!important;min-width:0!important;margin:0!important}
+.player-overlay .player-feed{width:100%!important;height:100%!important}
+.player-overlay .feed-page-head{display:flex!important;align-items:flex-end!important;gap:16px!important}
+.player-overlay .feed-page-head>div{display:flex!important;flex-direction:column!important;gap:5px!important}

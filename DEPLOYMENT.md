@@ -125,3 +125,6 @@ khareeda hua) daalo. Free SSL automatic mil jaata hai.
 The site shows a one-time Brave/ad-blocker recommendation popup. It has **Don't show again** and **Confirm** controls, detects Brave, and opens the correct official Brave download page or mobile store. Users on Chrome, Firefox, Edge and Safari can keep their browser and use a trusted content blocker.
 
 The footer includes the developer contact: [Telegram @botdeveloper08](https://t.me/botdeveloper08).
+
+## After deploying a new ZIP
+The HTML uses versioned `style.css?v=9.3.0` and `app.js?v=9.3.0` URLs so Render/browser cache cannot keep the old half-height player. If an old tab is open, do one hard refresh (`Ctrl + Shift + R`).

@@ -1,4 +1,4 @@
-# ▶ StreamVerse v9.2
+# ▶ StreamVerse v9.3
 
 Premium movies / TV / anime discovery & streaming launcher — zero npm dependencies.
 
@@ -21,6 +21,7 @@ Premium movies / TV / anime discovery & streaming launcher — zero npm dependen
 - 🚀 Back-to-top button, smooth animations, reduced-motion support
 - 🦁 One-time Brave/ad-blocker recommendation popup with Do not show again, Confirm, Google Play/App Store and desktop download links
 - 📱 Mobile-first fullscreen player with swipe-up Up Next recommendations and developer Telegram contact
+- 🔄 Versioned frontend assets prevent Render/browser cache from keeping the old half-height player
 
 ## 🚀 Run locally
 ```bash
@@ -30,7 +31,7 @@ node server.js          # Node 18+ → http://localhost:3000
 ## 🔌 API routes
 Core: `/api/health` · `/api/stats` · `/api/cache/clear` · `/api/geo` · `/api/countries`
 Browse: `/api/trending` · `/api/movie/{popular,top_rated,upcoming,now_playing}` · `/api/tv/{popular,top_rated}` · `/api/search?q=`
-Detail: `/api/details?media=tv|movie&id=` · `/api/tv/season?id=&s=1` · `/api/watch?media=&id=&region=`
+Detail: `/api/details?media=tv|movie&id=` · `/api/recommendations?media=&id=` · `/api/tv/season?id=&s=1` · `/api/watch?media=&id=&region=`
 Genres: `/api/genres?media=movie|tv` · `/api/movie/genre?g=` · `/api/tv/genre?g=` · `/api/anime/genres` · `/api/anime/genre?g=&name=`
 Anime video: `/api/anime/videos?id=` — official YouTube trailer + licensed streaming links
 Performance: home rows are lazy-loaded near the viewport to reduce the initial API burst

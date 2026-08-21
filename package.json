@@ -1,6 +1,6 @@
 {
   "name": "streamverse",
-  "version": "9.2.0",
+  "version": "9.3.0",
   "description": "StreamVerse — Movies, TV & Anime discovery site (TMDB + AniList anime with Cinemeta + Jikan backups)",
   "private": true,
   "main": "server.js",

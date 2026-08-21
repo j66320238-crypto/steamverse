@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://api.themoviedb.org" />
 <link rel="preconnect" href="https://api.jikan.moe" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=9.3.0" />
 </head>
 <body>
 <div class="bg-glow"></div>
@@ -288,10 +288,18 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         Next server
       </button>
+      <div class="player-inline-recommendations hidden" id="playerInlineRecommendations" aria-label="Recommended videos below the player">
+        <div class="inline-rec-head">
+          <div><span class="inline-rec-kicker">NEXT UP</span><strong>Recommended for you</strong></div>
+          <button class="inline-rec-open" id="inlineRecOpen" type="button">See all ↑</button>
+        </div>
+        <div class="inline-rec-row" id="playerInlineRecRow"></div>
+      </div>
       <div class="feed-swipe-hint" id="feedSwipeHint" aria-hidden="true">
         <span>Swipe up for recommendations</span>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
       </div>
+      <div class="player-swipe-zone" id="playerSwipeZone" aria-label="Swipe up to see recommendations"></div>
       </section>
 
       <section class="player-page player-controls" id="playerControls" aria-label="Recommendations and player controls">
@@ -529,6 +537,6 @@
 
 <!-- hls.js for Live TV -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=9.3.0"></script>
 </body>
 </html>

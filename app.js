@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v9.2 — client
+   StreamVerse v9.3 — client
    • Works with or without the Node server (direct TMDB/Jikan fallback)
    • 8 embed sources (VidSrc, Embed.su, MultiEmbed, AutoEmbed, SmashyStream,
      VidSrc.xyz, 2Embed, Streambug) with season/episode picker
@@ -268,6 +268,16 @@
         return directTmdb(`/${media}/${id}`, { append_to_response: 'credits,similar,recommendations,content_ratings,release_dates,translations' });
       }
       if (p.startsWith('/tv/season')) return directTmdb(`/tv/${get('id')}/season/${get('s') || '1'}`);
+      if (p.startsWith('/recommendations')) {
+        const media = get('media'), id = get('id');
+        const responses = await Promise.allSettled([
+          directTmdb(`/${media}/${id}/recommendations`, { page: '1' }),
+          directTmdb(`/${media}/${id}/similar`, { page: '1' }),
+        ]);
+        const results = responses.flatMap((r) => r.status === 'fulfilled' ? (r.value.results || []) : [])
+          .filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i).slice(0, 24);
+        return { results };
+      }
       if (p.startsWith('/watch')) return directTmdb(`/${get('media')}/${get('id')}/watch/providers`, { watch_region: get('region') || 'IN' });
       if (p.startsWith('/genres')) return directTmdb(`/genre/${get('media') === 'tv' ? 'tv' : 'movie'}/list`);
       if (p.startsWith('/movie/genre')) return directTmdb('/discover/movie', { with_genres: get('g'), sort_by: get('sort') || 'popularity.desc', 'vote_count.gte': '50', page: get('page') || '1' });
@@ -306,9 +316,9 @@
         return { countries: (list || []).map((c) => ({ code: c.iso_3166_1, name: c.english_name, native: c.native_name })) };
       }
       if (p.startsWith('/geo')) return { country_code: 'IN', country: 'India', flag: '🇮🇳' };
-      if (p.startsWith('/stats')) return { version: '9.2.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
+      if (p.startsWith('/stats')) return { version: '9.3.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
       if (p.startsWith('/cache/clear')) return { ok: true, cleared: 0 };
-      if (p.startsWith('/health')) return { ok: true, version: '9.2.0-client' };
+      if (p.startsWith('/health')) return { ok: true, version: '9.3.0-client' };
       throw new Error('unknown api path: ' + p);
     };
 
@@ -1455,6 +1465,7 @@
 
   async function openPlayer({title, media, tmdbId, malId, backdrop, season=1, episode=1}) {
     const p = state.player;
+    p.session = (p.session || 0) + 1;
     p.active = true;
     p.title = title || 'Now Playing';
     p.backdrop = backdrop || '';
@@ -1528,6 +1539,11 @@
     }
     const hint = $('#feedSwipeHint');
     if (hint) hint.classList.remove('dismissed');
+    const inline = $('#playerInlineRecommendations');
+    if (inline) inline.classList.add('hidden');
+    const inlineRow = $('#playerInlineRecRow');
+    if (inlineRow) inlineRow.innerHTML = '';
+    $('#playerStage')?.classList.remove('has-inline-recs');
   }
 
   function applyFramePolicy() {
@@ -1661,68 +1677,117 @@
     });
   }
 
+  function playRecommendationItem(it) {
+    const isAnime = it.kind === 'anime' || it.mal_id != null;
+    const name = titleOf(it);
+    const poster = isAnime
+      ? (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url))
+      : it.poster_path;
+    if (isAnime) {
+      recordContinue({ id: it.mal_id, media_type: 'anime', title: name, vote_average: it.score, release_date: String(it.year || '') });
+      openPlayer({ title: name, media: 'anime', malId: it.mal_id, backdrop: poster || '' });
+    } else {
+      const media = mediaOf(it);
+      recordContinue({ id: it.id, media_type: media, title: name, vote_average: it.vote_average, release_date: it.release_date || it.first_air_date, poster_path: it.poster_path, backdrop_path: it.backdrop_path });
+      openPlayer({ title: name, media, tmdbId: it.id, backdrop: backdropUrl(it.backdrop_path || it.poster_path) });
+    }
+  }
+
+  function recommendationPoster(it) {
+    const isAnime = it.kind === 'anime' || it.mal_id != null;
+    return isAnime
+      ? (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url))
+      : it.poster_path;
+  }
+
+  function recommendationName(it) {
+    return titleOf(it) || 'Recommended title';
+  }
+
+  function renderInlineRecommendationCards(items) {
+    const wrap = $('#playerInlineRecommendations');
+    const row = $('#playerInlineRecRow');
+    const stage = $('#playerStage');
+    row.innerHTML = '';
+    const clean = (items || []).filter(Boolean).slice(0, 7);
+    if (!clean.length) {
+      wrap.classList.add('hidden');
+      stage.classList.remove('has-inline-recs');
+      return;
+    }
+    clean.forEach((it) => {
+      const isAnime = it.kind === 'anime' || it.mal_id != null;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'inline-rec-card';
+      card.title = recommendationName(it);
+      card.innerHTML = `<img loading="lazy" src="${esc(recommendationPoster(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><span class="inline-rec-name">${esc(recommendationName(it))}</span><span class="inline-rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV' : 'Movie'}</span>`;
+      card.onclick = () => playRecommendationItem(it);
+      row.appendChild(card);
+    });
+    wrap.classList.remove('hidden');
+    stage.classList.add('has-inline-recs');
+  }
+
   function renderRecommendationCards(items) {
     const inner = $('#pcRecRowInner');
     inner.innerHTML = '';
     const clean = (items || []).filter(Boolean).slice(0, 14);
     if (!clean.length) {
       $('#pcRecRow').classList.add('hidden');
+      renderInlineRecommendationCards([]);
       return;
     }
     clean.forEach((it) => {
       const isAnime = it.kind === 'anime' || it.mal_id != null;
-      const name = isAnime ? titleOf(it) : titleOf(it);
-      const poster = isAnime
-        ? (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url))
-        : it.poster_path;
       const c = document.createElement('div');
       c.className = 'rec-card'; c.tabIndex = 0;
-      c.innerHTML = `<img loading="lazy" src="${esc(poster || placeholderPoster())}" alt="${esc(name)}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="rec-name">${esc(name)}</div>`;
-      c.onclick = () => {
-        if (isAnime) {
-          recordContinue({ id: it.mal_id, media_type: 'anime', title: name, vote_average: it.score, release_date: String(it.year || '') });
-          openPlayer({ title: name, media: 'anime', malId: it.mal_id, backdrop: poster || '' });
-        } else {
-          const m = mediaOf(it);
-          recordContinue({ id: it.id, media_type: m, title: name, vote_average: it.vote_average, release_date: it.release_date || it.first_air_date, poster_path: it.poster_path, backdrop_path: it.backdrop_path });
-          openPlayer({ title: name, media: m, tmdbId: it.id, backdrop: backdropUrl(it.backdrop_path || it.poster_path) });
-        }
-      };
+      c.innerHTML = `<img loading="lazy" src="${esc(recommendationPoster(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="rec-name">${esc(recommendationName(it))}</div><div class="rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV show' : 'Movie'}</div>`;
+      c.onclick = () => playRecommendationItem(it);
       c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); } };
       inner.appendChild(c);
     });
     $('#pcRecRow').classList.remove('hidden');
+    renderInlineRecommendationCards(clean);
+  }
+
+  function fallbackRecommendations(p) {
+    return (state.heroItems || []).filter((it) => !(p.media === 'anime' && it.mal_id === p.malId)).slice(0, 10);
   }
 
   async function loadRecommendations(p) {
     $('#pcRecRow').classList.add('hidden');
     $('#pcRecRowInner').innerHTML = '';
+    renderInlineRecommendationCards([]);
     if (!p.tmdbId || p.media === 'anime') return;
+    const session = p.session;
     try {
-      const d = await api(`/details?media=${p.media}&id=${p.tmdbId}`, { noCache: true });
-      const recs = [
-        ...((d.recommendations && d.recommendations.results) || []),
-        ...((d.similar && d.similar.results) || []),
-      ].filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i)
+      const d = await api(`/recommendations?media=${p.media}&id=${p.tmdbId}`, { noCache: true });
+      if (p.session !== session || !p.active) return;
+      const recs = (d.results || [])
+        .filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i)
         .filter(isReleased)
         .slice(0, 14);
-      renderRecommendationCards(recs);
+      renderRecommendationCards(recs.length ? recs : fallbackRecommendations(p));
     } catch (e) {
-      // The player still works when recommendations are unavailable.
-      $('#pcRecRow').classList.add('hidden');
+      if (p.session === session && p.active) renderRecommendationCards(fallbackRecommendations(p));
     }
   }
 
   async function loadAnimeRecommendations(p) {
     $('#pcRecRow').classList.add('hidden');
     $('#pcRecRowInner').innerHTML = '';
+    renderInlineRecommendationCards([]);
+    const session = p.session;
     try {
       const [animeResult, movieResult] = await Promise.allSettled([api('/anime/top?page=1'), api('/trending')]);
+      if (p.session !== session || !p.active) return;
       const anime = animeResult.status === 'fulfilled' ? (animeResult.value.data || []).slice(0, 8).map((x) => ({ ...x, kind: 'anime' })) : [];
       const movies = movieResult.status === 'fulfilled' ? (movieResult.value.results || []).filter(isReleased).slice(0, 6) : [];
-      renderRecommendationCards([...anime, ...movies].filter((x) => !(x.kind === 'anime' && x.mal_id === p.malId)));
+      const recs = [...anime, ...movies].filter((x) => !(x.kind === 'anime' && x.mal_id === p.malId));
+      renderRecommendationCards(recs.length ? recs : fallbackRecommendations(p));
     } catch (e) {
-      $('#pcRecRow').classList.add('hidden');
+      if (p.session === session && p.active) renderRecommendationCards(fallbackRecommendations(p));
     }
   }
 
@@ -2136,6 +2201,23 @@
       } else {
         playerFeed.classList.remove('has-scrolled');
       }
+    }, { passive: true });
+  }
+  $('#inlineRecOpen').onclick = () => {
+    const target = $('#playerControls');
+    if (playerFeed && target) playerFeed.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
+  };
+  const swipeZone = $('#playerSwipeZone');
+  let swipeStartY = 0;
+  if (swipeZone) {
+    swipeZone.addEventListener('touchstart', (e) => { swipeStartY = e.changedTouches[0]?.clientY || 0; }, { passive: true });
+    swipeZone.addEventListener('touchend', (e) => {
+      const endY = e.changedTouches[0]?.clientY || swipeStartY;
+      const delta = endY - swipeStartY;
+      const target = $('#playerControls');
+      if (!playerFeed || !target) return;
+      if (delta < -28) playerFeed.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
+      else if (delta > 28) playerFeed.scrollTo({ top: 0, behavior: 'smooth' });
     }, { passive: true });
   }
 

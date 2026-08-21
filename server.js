@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v9.2 — backend (Node.js, ZERO npm dependencies)
+   StreamVerse v9.3 — backend (Node.js, ZERO npm dependencies)
    Primary: TMDB (movies/TV), Jikan (anime)
    Backup : Cinemeta (movies/TV), AniList (anime), ipwho.is (geo)
    + stale-if-error cache, gzip/br compression, security headers
@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const VERSION = '9.2.0';
+const VERSION = '9.3.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -505,6 +505,18 @@ const routes = {
           };
         } catch (e) { throw e; }
       }, 'cinemeta');
+  },
+
+  '/api/recommendations': async (q) => {
+    const media = q.get('media');
+    const id = q.get('id');
+    if (!['movie', 'tv'].includes(media) || !id) throw httpError(400, 'media & id required');
+    const fetchList = (kind) => tmdb(`/${media}/${id}/${kind}`, { page: '1', language: langOf(q) }, 15 * 60 * 1000).catch(() => ({ results: [] }));
+    const [recommended, similar] = await Promise.all([fetchList('recommendations'), fetchList('similar')]);
+    const results = [...(recommended.results || []), ...(similar.results || [])]
+      .filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i)
+      .slice(0, 24);
+    return { results };
   },
 
   '/api/tv/season': async (q) => {
