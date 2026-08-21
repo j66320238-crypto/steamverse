@@ -64,7 +64,7 @@ async function cached(key, ttl, fn, staleOnError = true) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function jfetch(url, { method = 'GET', body, headers = {}, timeout = 12000, retries = 2 } = {}) {
+async function jfetch(url, { method = 'GET', body, headers = {}, timeout = 20000, retries = 3 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ctrl = new AbortController();
@@ -520,4 +520,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`StreamVerse v${VERSION} → http://${HOST}:${PORT}`);
   console.log(`Static: ${PUBLIC_DIR}`);
+  // Warm the cache in the background so first user doesn't pay cold-start cost
+  setTimeout(() => { tmdb('/trending/all/week', { language: 'en-US' }).catch(() => {}); }, 200);
+  setTimeout(() => { tmdb('/movie/popular', { language: 'en-US' }).catch(() => {}); }, 600);
+  setTimeout(() => { tmdb('/tv/popular', { language: 'en-US' }).catch(() => {}); }, 1000);
+  setTimeout(() => { jikan('/top/anime?page=1').catch(() => {}); }, 2000);
 });

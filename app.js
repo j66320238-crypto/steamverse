@@ -47,30 +47,44 @@
   const apiCache = new Map();
   let networkBanner = false;
 
-  async function api(p, { noCache = false } = {}) {
+  async function api(p, { noCache = false, retries = 2 } = {}) {
     const sep = p.includes('?') ? '&' : '?';
     const url = p + (state.lang ? `${sep}lang=${encodeURIComponent(state.lang)}` : '');
     if (!noCache) {
       const hit = apiCache.get(url);
       if (hit && Date.now() - hit.t < 4 * 60 * 1000) return hit.v;
     }
-    let r;
-    try { r = await fetch('/api' + url); }
-    catch (e) { showNetworkBanner(); throw new Error('network offline'); }
-    if (!r.ok) {
-      let msg = 'HTTP ' + r.status;
-      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch (e) {}
-      throw new Error(msg);
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      let r;
+      try {
+        r = await fetch('/api' + url);
+        if (!r.ok) {
+          let msg = 'HTTP ' + r.status;
+          try { const j = await r.json(); if (j && j.error) msg = j.error; } catch (e) {}
+          // 5xx + 429 are retryable
+          if ((r.status >= 500 || r.status === 429) && attempt < retries) {
+            await new Promise((res) => setTimeout(res, 700 * (attempt + 1)));
+            continue;
+          }
+          throw new Error(msg);
+        }
+        const data = await r.json();
+        usage.reqs++;
+        try { usage.bytes += parseInt(r.headers.get('content-length') || '0', 10) || 0; } catch (e) {}
+        if (usage.reqs % 4 === 0) saveUsage();
+        if (!noCache) {
+          apiCache.set(url, { t: Date.now(), v: data });
+          if (apiCache.size > 80) apiCache.delete(apiCache.keys().next().value);
+        }
+        return data;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < retries) await new Promise((res) => setTimeout(res, 700 * (attempt + 1)));
+      }
     }
-    const data = await r.json();
-    usage.reqs++;
-    try { usage.bytes += parseInt(r.headers.get('content-length') || '0', 10) || 0; } catch (e) {}
-    if (usage.reqs % 4 === 0) saveUsage();
-    if (!noCache) {
-      apiCache.set(url, { t: Date.now(), v: data });
-      if (apiCache.size > 80) apiCache.delete(apiCache.keys().next().value);
-    }
-    return data;
+    if (lastErr && /network|fetch|failed/i.test(lastErr.message)) showNetworkBanner();
+    throw lastErr || new Error('request failed');
   }
 
   function showNetworkBanner() {
@@ -333,18 +347,27 @@
     d.appendChild(b);
     row.appendChild(d);
   }
-  function loadRow(apiPath, rowId, cardFn) {
-    const tryLoad = () => {
-      skelRow(rowId);
-      api(apiPath)
-        .then((data) => {
-          const items = data.items || data.data || data.results || [];
-          if (items.length) fillRow(rowId, items.slice(0, 20), cardFn);
-          else rowError(rowId, tryLoad);
-        })
-        .catch(() => rowError(rowId, tryLoad));
+  function loadRow(apiPath, rowId, cardFn, delay = 0) {
+    const tryLoad = (attempt = 0) => {
+      if (delay && attempt === 0) {
+        skelRow(rowId);
+        setTimeout(() => doLoad(attempt), delay);
+      } else doLoad(attempt);
+      function doLoad(attempt) {
+        skelRow(rowId);
+        api(apiPath)
+          .then((data) => {
+            const items = data.items || data.data || data.results || [];
+            if (items.length) fillRow(rowId, items.slice(0, 20), cardFn);
+            else rowError(rowId, () => tryLoad(0));
+          })
+          .catch(() => {
+            if (attempt < 2) setTimeout(() => tryLoad(attempt + 1), 1200 * (attempt + 1));
+            else rowError(rowId, () => tryLoad(0));
+          });
+      }
     };
-    tryLoad();
+    tryLoad(0);
   }
 
   function loadHome() {
@@ -367,16 +390,18 @@
       $('#heroDesc').textContent = 'Discover movies, TV shows and anime.';
     });
 
-    loadRow('/movie/popular', 'rowPopularRow', tmdbCard);
-    loadRow('/movie/top_rated', 'rowTopRatedRow', tmdbCard);
-    loadRow('/tv/popular', 'rowTvRow', tmdbCard);
-    loadRow('/tv/top_rated', 'rowTvTopRow', tmdbCard);
-    loadRow('/movie/upcoming', 'rowUpcomingRow', tmdbCard);
-    loadRow('/movie/genre?g=27', 'rowHorrorRow', tmdbCard);
-    loadRow('/movie/genre?g=35', 'rowComedyRow', tmdbCard);
-    loadRow('/movie/genre?g=28', 'rowActionRow', tmdbCard);
-    loadRow('/anime/top', 'rowAnimeRow', animeCard);
-    loadRow('/anime/topairing', 'rowAiringRow', animeCard);
+    // stagger rows to avoid hammering the server on cold start
+    loadRow('/movie/popular', 'rowPopularRow', tmdbCard, 0);
+    loadRow('/movie/top_rated', 'rowTopRatedRow', tmdbCard, 150);
+    loadRow('/tv/popular', 'rowTvRow', tmdbCard, 300);
+    loadRow('/tv/top_rated', 'rowTvTopRow', tmdbCard, 450);
+    loadRow('/movie/upcoming', 'rowUpcomingRow', tmdbCard, 600);
+    loadRow('/movie/genre?g=27', 'rowHorrorRow', tmdbCard, 750);
+    loadRow('/movie/genre?g=35', 'rowComedyRow', tmdbCard, 900);
+    loadRow('/movie/genre?g=28', 'rowActionRow', tmdbCard, 1050);
+    // anime (Jikan) loads later — give TMDB routes room first
+    loadRow('/anime/top', 'rowAnimeRow', animeCard, 1400);
+    loadRow('/anime/topairing', 'rowAiringRow', animeCard, 1700);
   }
 
   function renderContinueRow() {
