@@ -1,8 +1,8 @@
 /* ============================================================
-   StreamVerse — backend (Node.js, ZERO npm dependencies)
+   StreamVerse v9.2 — backend (Node.js, ZERO npm dependencies)
    Primary: TMDB (movies/TV), Jikan (anime)
-   Backup : Cinemeta (movies/TV), AniList (anime), ipapi.co (geo)
-   + stale-if-error cache, gzip compression, security headers
+   Backup : Cinemeta (movies/TV), AniList (anime), ipwho.is (geo)
+   + stale-if-error cache, gzip/br compression, security headers
    ============================================================ */
 'use strict';
 
@@ -10,9 +10,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const dns = require('dns').promises;
 
-const VERSION = '5.2.0';
+const VERSION = '9.2.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -21,18 +20,13 @@ const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public', 'index.html'))
   ? path.join(__dirname, 'public')
   : __dirname;
 
-// Get a free TMDB key: https://www.themoviedb.org/settings/api
-// Set it as an environment variable TMDB_KEY on your host (Render/Koyeb).
-const TMDB_KEY = process.env.TMDB_KEY || '';
-if (!TMDB_KEY) {
-  console.warn('\n  [warn] TMDB_KEY env var not set — movie/TV data will not load until you add one.\n         Get a free key at https://www.themoviedb.org/settings/api\n');
-}
+const TMDB_KEY = process.env.TMDB_KEY || '3fd2be6f0c70a2a598f084ddfb75487c';
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const CINEMETA = 'https://v3-cinemeta.strem.io';
 const ANILIST = 'https://graphql.anilist.co';
 const WATCH_REGION = process.env.WATCH_REGION || 'IN';
 
-/* ---------------- stats ---------------- */
+/* ---------------- stats + online presence ---------------- */
 const stats = {
   started: Date.now(),
   requests: 0,
@@ -42,6 +36,16 @@ const stats = {
 };
 const apiHealth = { tmdb: '?', jikan: '?', cinemeta: '?', anilist: '?', geo: '?' };
 
+// online presence: heartbeats live for 45s; sweep every 15s.
+const presence = new Map(); // token -> lastSeen
+let anonCounter = 0;
+function sweepPresence() {
+  const now = Date.now();
+  for (const [k, v] of presence) if (now - v > 45000) presence.delete(k);
+}
+function onlineCount() { sweepPresence(); return presence.size; }
+setInterval(sweepPresence, 15000).unref?.();
+
 /* ---------------- cache (stale-if-error) ---------------- */
 const cache = new Map();
 async function cached(key, ttl, fn, staleOnError = true) {
@@ -50,7 +54,7 @@ async function cached(key, ttl, fn, staleOnError = true) {
   try {
     const v = await fn();
     cache.set(key, { t: Date.now(), v });
-    if (cache.size > 1200) cache.delete(cache.keys().next().value);
+    if (cache.size > 1500) cache.delete(cache.keys().next().value);
     return v;
   } catch (e) {
     if (staleOnError && hit) {
@@ -64,7 +68,7 @@ async function cached(key, ttl, fn, staleOnError = true) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function jfetch(url, { method = 'GET', body, headers = {}, timeout = 20000, retries = 3 } = {}) {
+async function jfetch(url, { method = 'GET', body, headers = {}, timeout = 12000, retries = 2 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ctrl = new AbortController();
@@ -106,7 +110,7 @@ const langOf = (q) => q.get('lang') || 'en-US';
 function cinemetaToTmdbList(metas, mediaType) {
   return {
     results: (metas || []).map((m) => ({
-      id: m.imdb_id || m.id,
+      id: m.moviedb_id || m.imdb_id || m.id,
       media_type: mediaType,
       title: m.name, name: m.name,
       poster_path: m.poster || '', backdrop_path: m.background || '',
@@ -139,10 +143,12 @@ async function anilist(query, variables = {}) {
   });
 }
 function alMediaToJikan(m) {
+  if (!m) return {};
   return {
     mal_id: m.idMal || m.id,
-    title: (m.title && m.title.romaji) || '',
+    title: (m.title && (m.title.romaji || m.title.english)) || '',
     title_english: (m.title && (m.title.english || m.title.romaji)) || '',
+    title_japanese: m.title && m.title.native,
     images: { jpg: { image_url: m.coverImage && m.coverImage.large, large_image_url: (m.coverImage && (m.coverImage.extraLarge || m.coverImage.large)) || '' } },
     score: m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
     year: m.seasonYear || (m.startDate && m.startDate.year) || null,
@@ -151,7 +157,11 @@ function alMediaToJikan(m) {
     episodes: m.episodes || null,
     synopsis: m.description || '',
     genres: (m.genres || []).map((g) => ({ name: g })),
-    trailer: m.trailer && m.trailer.site === 'youtube' ? { youtube_id: m.trailer.id } : null,
+    trailer: m.trailer && String(m.trailer.site || '').toLowerCase() === 'youtube' ? { youtube_id: m.trailer.id } : null,
+    streamingEpisodes: (m.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e) => ({
+      title: e.title || 'Official episode', thumbnail: e.thumbnail || '', url: e.url, site: e.site || 'Official',
+    })),
+    banner_image: m.bannerImage || '',
     url: m.siteUrl || (m.idMal ? 'https://myanimelist.net/anime/' + m.idMal : ''),
     aired: { from: m.startDate && m.startDate.year ? String(m.startDate.year) : null },
   };
@@ -168,7 +178,7 @@ const AL_LIST = `query ($page: Int, $sort: [MediaSort], $status: MediaStatus, $s
     media(type: ANIME, sort: $sort, status: $status, search: $search, genre: $genre, isAdult: false) {
       id idMal title { romaji english } coverImage { extraLarge large }
       averageScore seasonYear startDate { year } episodes status format genres
-      trailer { id site } siteUrl
+      trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
     }
   }
 }`;
@@ -176,9 +186,117 @@ const AL_DETAIL = `query ($idMal: Int) {
   Media(idMal: $idMal, type: ANIME) {
     id idMal title { romaji english } coverImage { extraLarge large } bannerImage
     description averageScore seasonYear startDate { year } episodes status format genres
-    trailer { id site } siteUrl
+    trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
   }
 }`;
+const AL_VIDEO = `query ($idMal: Int) {
+  Media(idMal: $idMal, type: ANIME) {
+    id idMal title { romaji english native } coverImage { extraLarge large } bannerImage
+    trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
+  }
+}`;
+
+function youtubeTrailer(id, thumbnail) {
+  if (!id) return null;
+  const key = encodeURIComponent(String(id));
+  return {
+    id: String(id),
+    site: 'YouTube',
+    thumbnail: thumbnail || `https://i.ytimg.com/vi/${key}/hqdefault.jpg`,
+    url: `https://www.youtube.com/watch?v=${key}`,
+    embed: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
+  };
+}
+
+function animeTitle(m) {
+  return (m && m.title && (m.title.english || m.title.romaji || m.title.native)) || 'Anime';
+}
+
+function secureExternalUrl(value) {
+  try {
+    const u = new URL(String(value));
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return /^https?:$/.test(u.protocol) ? u.toString() : '';
+  } catch (e) { return ''; }
+}
+
+function normaliseAnimeVideos(m, malId, extra = {}) {
+  const title = animeTitle(m);
+  const trailer = m && m.trailer && String(m.trailer.site || '').toLowerCase() === 'youtube'
+    ? youtubeTrailer(m.trailer.id, m.trailer.thumbnail)
+    : null;
+  const episodes = (m && m.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e, i) => ({
+    id: `${malId}-${i + 1}`,
+    title: e.title || `Official episode ${i + 1}`,
+    thumbnail: e.thumbnail || '', url: secureExternalUrl(e.url), site: e.site || 'Official',
+  }));
+  const q = encodeURIComponent(title);
+  return {
+    ok: Boolean(trailer || episodes.length), source: 'AniList', mal_id: Number(malId), title,
+    trailer, episodes,
+    official: [
+      { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
+      { name: 'Netflix', url: `https://www.netflix.com/search?q=${q}` },
+      { name: 'YouTube', url: `https://www.youtube.com/results?search_query=${q}+official+trailer` },
+      ...(m && m.siteUrl ? [{ name: 'AniList', url: m.siteUrl }] : []),
+    ],
+    ...extra,
+  };
+}
+
+async function animeVideosFromAniList(malId) {
+  const data = await anilist(AL_VIDEO, { idMal: Number(malId) });
+  const media = data && data.Media;
+  if (!media) throw new Error('anime not found');
+  return normaliseAnimeVideos(media, malId);
+}
+
+async function animeVideosFromJikan(malId) {
+  const result = await jikan(`/anime/${encodeURIComponent(malId)}/full`);
+  const a = result && result.data;
+  if (!a) throw new Error('anime not found');
+  const title = a.title_english || a.title || 'Anime';
+  const rawTrailer = a.trailer && (a.trailer.youtube_id || a.trailer.url || '');
+  const trailerId = a.trailer && a.trailer.youtube_id
+    ? a.trailer.youtube_id
+    : String(rawTrailer).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^?&/]+)/i)?.[1];
+  const trailer = trailerId
+    ? youtubeTrailer(trailerId, a.images && a.images.jpg && a.images.jpg.image_url)
+    : null;
+  return normaliseAnimeVideos({ title: { romaji: title }, trailer, streamingEpisodes: [] }, malId, { source: 'Jikan' });
+}
+
+async function animeVideos(malId) {
+  return cached('anime:videos:' + malId, 30 * 60 * 1000, async () => {
+    try {
+      const primary = await animeVideosFromAniList(malId);
+      // AniList sometimes has no trailer even though TMDB has an official
+      // YouTube clip. Use the existing MAL → TMDB matcher only as a trailer
+      // fallback; episode links always remain official provider URLs.
+      if (!primary.trailer && !primary.episodes.length) {
+        try {
+          const mapped = await animeToTmdb(malId);
+          if (mapped && mapped.tmdb_id) {
+            const videos = await tmdb(`/${mapped.media}/${mapped.tmdb_id}/videos`, { language: 'en-US' }, 30 * 24 * 60 * 60 * 1000);
+            const clip = (videos.results || []).find((v) => String(v.site).toLowerCase() === 'youtube' && /trailer|teaser|clip/i.test(v.type || v.name || ''))
+              || (videos.results || []).find((v) => String(v.site).toLowerCase() === 'youtube');
+            if (clip && clip.key) {
+              primary.trailer = youtubeTrailer(clip.key);
+              primary.ok = true;
+              primary.source = 'AniList + TMDB video fallback';
+            }
+          }
+        } catch (e) { /* keep the official provider links */ }
+      }
+      return primary;
+    } catch (primaryError) {
+      try { return await animeVideosFromJikan(malId); }
+      catch (backupError) {
+        return { ok: false, source: 'unavailable', mal_id: Number(malId), title: 'Anime', trailer: null, episodes: [], official: [] };
+      }
+    }
+  });
+}
 
 /* ---------------- Jikan ---------------- */
 function jikan(p, ttl = 15 * 60 * 1000) {
@@ -222,10 +340,32 @@ async function geoLookup(ip) {
   return { country_code: 'IN', country: 'India', flag: '🇮🇳', fallback: true };
 }
 
-/* ---------------- TMDB countries (for settings) ---------------- */
+/* ---------------- TMDB countries ---------------- */
 function tmdbCountries() {
   return cached('tmdb:countries', 7 * 24 * 60 * 60 * 1000, () =>
     tmdb('/configuration/countries', {}, 7 * 24 * 60 * 60 * 1000));
+}
+
+/* ---------------- anime → TMDB id mapping (for embeds) ---------------- */
+async function animeToTmdb(malId) {
+  return cached('a2t:' + malId, 30 * 24 * 60 * 60 * 1000, async () => {
+    const j = await jikan(`/anime/${malId}/full`);
+    const a = j.data || {};
+    const title = a.title_english || a.title || '';
+    const year = a.year ? String(a.year) : (a.aired && a.aired.from ? String(a.aired.from).slice(0, 4) : '');
+    if (!title) throw new Error('no anime title');
+    const r = await tmdb('/search/tv', { query: title, first_air_date_year: year, include_adult: 'false' }, 30 * 24 * 60 * 60 * 1000);
+    const res = (r && r.results) || [];
+    const best = res.find((x) => x.name && x.name.toLowerCase() === title.toLowerCase()) || res[0];
+    if (!best) {
+      // try movie search for anime films
+      const rm = await tmdb('/search/movie', { query: title, year, include_adult: 'false' }, 30 * 24 * 60 * 60 * 1000);
+      const m = (rm && rm.results && rm.results[0]) || null;
+      if (!m) throw new Error('no tmdb match');
+      return { tmdb_id: m.id, media: 'movie', title: m.title };
+    }
+    return { tmdb_id: best.id, media: 'tv', title: best.name };
+  });
 }
 
 /* ---------------- fallback helper ---------------- */
@@ -243,7 +383,27 @@ function httpError(status, msg) { const e = new Error(msg); e.status = status; r
 
 /* ---------------- routes ---------------- */
 const routes = {
+  // CORS proxy for TMDB — lets file:// and other origins hit TMDB through us.
+  '/api/tmdb': async (q) => {
+    const p = q.get('p') || '';
+    if (!/^\/[a-z0-9/_-]+$/i.test(p)) throw httpError(400, 'bad path');
+    const params = {};
+    for (const [k, v] of q) if (k !== 'p' && k !== 'api_key') params[k] = v;
+    // Always use the Render/server key, never a browser-supplied key.
+    params.api_key = TMDB_KEY;
+    return tmdb(p, params, 5 * 60 * 1000);
+  },
+
   '/api/health': async () => ({ ok: true, version: VERSION, uptime: Math.round(process.uptime()), time: new Date().toISOString(), cached_items: cache.size }),
+
+  '/api/ping': async (q) => {
+    // lightweight heartbeat. client sends &t=<token>; server keeps it live.
+    const tok = q.get('t') || ('a' + (++anonCounter) + '_' + Date.now().toString(36));
+    presence.set(tok, Date.now());
+    return { ok: true, token: tok, online: onlineCount(), serverTime: Date.now() };
+  },
+
+  '/api/online': async () => ({ online: onlineCount(), started: stats.started }),
 
   '/api/stats': async () => ({
     uptime_s: Math.round((Date.now() - stats.started) / 1000),
@@ -256,7 +416,6 @@ const routes = {
   }),
 
   '/api/cache/clear': async (q) => {
-    // protected: requires ?token=ADMIN_CACHE_TOKEN (env) when set
     const tok = process.env.ADMIN_CACHE_TOKEN;
     if (tok && q.get('token') !== tok) throw httpError(403, 'forbidden');
     const n = cache.size; cache.clear();
@@ -280,6 +439,15 @@ const routes = {
         { code: 'FR', name: 'France' }, { code: 'JP', name: 'Japan' },
       ] };
     }
+  },
+
+  '/api/anime/tmdb': async (q) => {
+    const malId = q.get('id');
+    if (!malId) throw httpError(400, 'id required');
+    return withBackup(
+      () => animeToTmdb(malId),
+      async () => ({ tmdb_id: null, media: 'tv', error: 'no_tmdb_match' }),
+      'anilist');
   },
 
   '/api/trending': (q) => withBackup(
@@ -319,9 +487,8 @@ const routes = {
     const id = q.get('id');
     if (!media || !id) throw httpError(400, 'media & id required');
     return withBackup(
-      () => tmdb(`/${media}/${id}`, { append_to_response: 'credits,similar,recommendations,content_ratings,release_dates', language: langOf(q) }),
+      () => tmdb(`/${media}/${id}`, { append_to_response: 'credits,similar,recommendations,content_ratings,release_dates,translations', language: langOf(q) }),
       async () => {
-        // minimal cinemeta fallback
         const kind = media === 'tv' ? 'series' : 'movie';
         try {
           const r = await jfetch(`${CINEMETA}/meta/${kind}/${encodeURIComponent(String(id))}.json`);
@@ -385,29 +552,95 @@ const routes = {
     const g = q.get('g'); const name = q.get('name') || ''; const page = q.get('page') || '1';
     if (!g) throw httpError(400, 'g required');
     return withBackup(
-      () => jikan(`/anime?genres=${g}&order_by=members&sort=desc&sfw=true&page=${page}`),
       async () => {
         const d = await anilist(AL_LIST, { page: parseInt(page, 10), sort: ['POPULARITY_DESC'], genre: name });
-        return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) };
-      }, 'anilist');
+        return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan), pagination: { current_page: Number(page) } };
+      },
+      () => jikan(`/anime?genres=${g}&order_by=members&sort=desc&sfw=true&page=${page}`), 'jikan');
   },
   '/api/anime/top': (q) => withBackup(
-    () => jikan('/top/anime?page=' + (q.get('page') || '1')),
-    async () => { const d = await anilist(AL_LIST, { page: parseInt(q.get('page') || '1', 10), sort: ['SCORE_DESC'] }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) }; }, 'anilist'),
-  '/api/anime/topairing': () => withBackup(
-    () => jikan('/top/anime?filter=airing'),
-    async () => { const d = await anilist(AL_LIST, { page: 1, sort: ['POPULARITY_DESC'], status: 'RELEASING' }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) }; }, 'anilist'),
+    async () => { const d = await anilist(AL_LIST, { page: parseInt(q.get('page') || '1', 10), sort: ['SCORE_DESC'] }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan), pagination: { last_visible_page: 20 } }; },
+    () => jikan('/top/anime?page=' + (q.get('page') || '1')), 'jikan'),
+  '/api/anime/topairing': (q) => withBackup(
+    async () => { const d = await anilist(AL_LIST, { page: parseInt(q.get('page') || '1', 10), sort: ['POPULARITY_DESC'], status: 'RELEASING' }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan), pagination: { last_visible_page: 20 } }; },
+    () => jikan('/top/anime?filter=airing'), 'jikan'),
   '/api/anime/search': (q) => withBackup(
-    () => jikan('/anime?q=' + encodeURIComponent(q.get('q') || '') + '&page=1'),
-    async () => { const d = await anilist(AL_LIST, { page: 1, sort: ['SEARCH_MATCH'], search: q.get('q') || '' }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) }; }, 'anilist'),
+    async () => { const d = await anilist(AL_LIST, { page: 1, sort: ['SEARCH_MATCH'], search: q.get('q') || '' }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) }; },
+    () => jikan('/anime?q=' + encodeURIComponent(q.get('q') || '') + '&page=1'), 'jikan'),
   '/api/anime/details': (q) => {
     const id = q.get('id');
     if (!id) throw httpError(400, 'id required');
     return withBackup(
-      () => jikan(`/anime/${id}/full`),
-      async () => { const d = await anilist(AL_DETAIL, { idMal: parseInt(id, 10) }); return { data: alMediaToJikan(d.Media) }; }, 'anilist');
+      async () => { const d = await anilist(AL_DETAIL, { idMal: parseInt(id, 10) }); return { data: alMediaToJikan(d.Media) }; },
+      () => jikan(`/anime/${id}/full`), 'jikan');
+  },
+  '/api/anime/videos': (q) => {
+    const id = q.get('id');
+    if (!id || !/^\d+$/.test(String(id))) throw httpError(400, 'id required');
+    return animeVideos(id);
+  },
+
+  /* K-Drama / Asian drama browse */
+  '/api/drama/popular': (q) => {
+    const lang = q.get('lang') || 'ko';
+    return withBackup(
+      () => tmdb('/discover/tv', {
+        with_original_language: lang,
+        sort_by: 'popularity.desc',
+        page: q.get('page') || '1',
+        'vote_count.gte': '10',
+        language: langOf(q),
+      }),
+      () => cinemetaList('series'), 'cinemeta');
   },
 };
+
+/* ---------------- HLS proxy for Live TV ----------------
+   Some streams don't send CORS headers; this proxies m3u8/segments
+   so hls.js can play them. Whitelist http(s) targets only. */
+const HLS_BLOCKLIST = /(localhost|127\.|169\.254|::1|10\.|192\.168)/i;
+async function hlsProxy(req, res, u) {
+  if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
+  const target = u.searchParams.get('url');
+  if (!target) { res.writeHead(400); return res.end('url required'); }
+  let parsed;
+  try { parsed = new URL(target); } catch { res.writeHead(400); return res.end('bad url'); }
+  if (!/^https?:$/.test(parsed.protocol) || HLS_BLOCKLIST.test(parsed.host)) {
+    res.writeHead(400); return res.end('blocked');
+  }
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(target, {
+      signal: ctrl.signal, redirect: 'follow',
+      headers: {
+        'User-Agent': UA,
+        'Referer': target,
+        'Origin': 'https://' + parsed.host,
+      },
+    });
+    clearTimeout(timer);
+    const ct = r.headers.get('content-type') || 'application/octet-stream';
+    res.writeHead(r.status, {
+      'Content-Type': ct,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': ct.includes('mpegurl') || ct.includes('json') ? 'no-store' : 'public, max-age=30',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    if (!r.ok || !r.body) { res.end(); return; }
+    // stream the body
+    const reader = r.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (e) {
+    if (!res.headersSent) res.writeHead(502);
+    res.end('upstream error: ' + e.message);
+  }
+}
 
 /* ---------------- static + gzip ---------------- */
 const MIME = {
@@ -497,6 +730,8 @@ const server = http.createServer(async (req, res) => {
   const p = u.pathname.replace(/\/+$/, '') || '/';
 
   try {
+    // HLS proxy for live TV
+    if (p === '/api/hls') return hlsProxy(req, res, u);
     const handler = routes[p];
     if (handler) {
       stats.requests++;
@@ -520,9 +755,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`StreamVerse v${VERSION} → http://${HOST}:${PORT}`);
   console.log(`Static: ${PUBLIC_DIR}`);
-  // Warm the cache in the background so first user doesn't pay cold-start cost
-  setTimeout(() => { tmdb('/trending/all/week', { language: 'en-US' }).catch(() => {}); }, 200);
-  setTimeout(() => { tmdb('/movie/popular', { language: 'en-US' }).catch(() => {}); }, 600);
-  setTimeout(() => { tmdb('/tv/popular', { language: 'en-US' }).catch(() => {}); }, 1000);
-  setTimeout(() => { jikan('/top/anime?page=1').catch(() => {}); }, 2000);
 });
