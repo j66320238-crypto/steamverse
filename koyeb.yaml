@@ -1,0 +1,40 @@
+# Koyeb deployment config — free "nano" instance, no card in most regions.
+#
+# Koyeb UI se bhi kar sakte ho; ye file sirf reference/CLI ke liye hai:
+#   koyeb app init streamverse --docker-  (ya GitHub connect karke Dockerfile detect)
+#
+# Free instance: 512 MB RAM / 0.1 vCPU, Frankfurt ya Washington DC only,
+# 1 ghante bina traffic ke scale-to-zero. KEEPALIVE_URL set karo to jaga rahega.
+app: streamverse
+services:
+  - name: web
+    type: web
+    instance_type: free
+    regions:
+      - fra          # Frankfurt — India se Washington se kam latency
+    ports:
+      - port: 3000
+        protocol: http
+    routes:
+      - path: /
+        port: 3000
+    health_checks:
+      - http:
+          path: /api/health
+          port: 3000
+    scalings:
+      min: 1
+      max: 1
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      # TMDB_KEY Koyeb dashboard me "secret" bana kar set karo.
+      - key: TMDB_KEY
+        secret: tmdb-key
+      - key: WATCH_REGION
+        value: IN
+      # Apna Koyeb URL daalo taaki service so na jaye:
+      # - key: KEEPALIVE_URL
+      #   value: https://streamverse-<org>.koyeb.app

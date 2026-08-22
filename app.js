@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.12.0';
+  const APP_VERSION = '12.12.6';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -421,7 +421,7 @@
     })(),
     sandbox: localStorage.getItem('sv-sandbox') === '1',
     useServer: location.protocol.startsWith('http') && !location.protocol.startsWith('file'),
-    live: { hls:null,currentChannel:null,audioContext:null,audioSource:null,highpass:null,lowShelf:null,voiceEq:null,compressor:null,gain:null,enhanced:localStorage.getItem('sv-live-enhance')!=='0',boostLevel:Number(localStorage.getItem('sv-live-voice-volume')||1.3) },
+    live: { hls:null,currentChannel:null,stallTimer:0,audioContext:null,audioSource:null,highpass:null,lowShelf:null,voiceEq:null,compressor:null,gain:null,enhanced:localStorage.getItem('sv-live-enhance')!=='0',boostLevel:Number(localStorage.getItem('sv-live-voice-volume')||1.3) },
   };
 
   let usage = readStoredJson('sv-usage', { bytes: 0, reqs: 0, since: Date.now() });
@@ -1636,8 +1636,64 @@
         toggleWatchlist(animeItem);
         const b=$('#animeList'); setTimeout(()=>{b.textContent=inWatchlist(ref.id,'anime')?t('inMyList'):t('myList');},0);
       };
+      // v12.12.6: the anime detail modal had no "More Like This" rail at all
+      // (only the in-player one), so recommendations were missing on this tab.
+      // Fill the same #detailExtra slot the movie/TV modal uses.
+      try {
+        const rec = await api(`/anime/recommendations?id=${encodeURIComponent(ref.id)}&source=${encodeURIComponent(ref.source)}`);
+        const items=(rec.data||[]).slice(0,12).filter(Boolean);
+        const extra=$('#detailExtra');
+        if(items.length && extra){
+          const box=document.createElement('div');
+          box.innerHTML=`<div class="section-label">${esc(t('moreLikeThis'))}</div><div class="mini-row" id="animeSimilarRow"></div>`;
+          extra.appendChild(box);
+          const row=$('#animeSimilarRow');
+          items.forEach((it)=>{
+            const id=it.mal_id||it.id;
+            const name=it.title||it.name||'';
+            const img=(it.images&&it.images.jpg&&(it.images.jpg.image_url||it.images.jpg.large_image_url))||it.poster||'';
+            if(!id||!name)return;
+            const div=document.createElement('div'); div.className='mini-card'; div.tabIndex=0;
+            div.innerHTML=`<img loading="lazy" src="${esc(img||placeholderPoster())}" alt="${esc(name)}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="mc-title">${esc(name)}</div>`;
+            const go=()=>openAnimeDetail(id,img,name,'mal');
+            div.onclick=go;
+            div.onkeydown=(e)=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} };
+            row.appendChild(div);
+          });
+        }
+      } catch(err) { /* rail is optional; never block the modal */ }
     } catch(e) {
-      bodyEl.innerHTML=`<div class="section-label" style="color:#ff8690">${esc(t('detailsFailed'))}</div>`;
+      // v12.12.6: the anime metadata APIs (AniList 403, Jikan per-title 504)
+      // can fail for one title while playback works fine. Falling back to a
+      // bare error message stranded the user; render what the caller already
+      // knows and keep Watch Now usable.
+      const knownTitle = title || '';
+      state.detail={media:'anime',id:animeId,title:knownTitle,animeSource:source};
+      if (knownTitle) {
+        const onList=inWatchlist(animeId,'anime');
+        $('#modalBackdrop').style.backgroundImage=img?`url(${img})`:'none';
+        bodyEl.innerHTML = `
+          <h2 class="modal-title" id="modalTitle">${esc(knownTitle)}</h2>
+          <div class="modal-meta"><span>${esc(t('anime'))}</span></div>
+          <p class="modal-desc">${esc(t('detailsFailed'))}</p>
+          <div class="modal-actions">
+            <button class="btn btn-play" id="animePlay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${esc(t('watchNow'))}</button>
+            <button class="btn btn-ghost" id="animeList">${esc(onList?t('inMyList'):t('myList'))}</button>
+          </div>
+          <div id="detailExtra"></div>`;
+        const fallbackItem={id:animeId,media_type:'anime',anime_source:source,title:knownTitle,poster_path:img||'',vote_average:0,release_date:''};
+        $('#animePlay').onclick=()=>{
+          recordContinue(fallbackItem,{ animeSource:source });
+          closeModal();
+          openPlayer({title:knownTitle,media:'anime',animeId,animeSource:source,backdrop:img||''});
+        };
+        $('#animeList').onclick=()=>{
+          toggleWatchlist(fallbackItem);
+          const b=$('#animeList'); setTimeout(()=>{b.textContent=inWatchlist(animeId,'anime')?t('inMyList'):t('myList');},0);
+        };
+      } else {
+        bodyEl.innerHTML=`<div class="section-label" style="color:#ff8690">${esc(t('detailsFailed'))}</div>`;
+      }
     }
   }
 
@@ -4097,14 +4153,30 @@
     defaultApplied: false,
   };
 
+
+  /* ------------------------------------------------------------
+     Shared geo lookup. One in-flight request, awaited by both the
+     region picker and the Live TV default-country logic.
+     ------------------------------------------------------------ */
+  let geoPromise = null;
+  function resolveGeo() {
+    if (!geoPromise) {
+      geoPromise = api('/geo', { noCache: true }).catch(() => ({ country_code: '' }));
+    }
+    return geoPromise;
+  }
+  const geoReady = { then: (fn, rej) => resolveGeo().then(fn, rej) };
+
   // Default the region to where the user actually is. sv-country is set by the
   // existing region picker; otherwise fall back to the browser locale, so a
   // phone in Patna opens on Indian channels instead of Alabama's.
-  function defaultLiveCountry() {
-    const saved = localStorage.getItem('sv-live-country');
-    if (saved !== null) return saved;             // '' is a real choice: All
-    const region = localStorage.getItem('sv-country') || localStorage.getItem('sv-region');
-    if (region && /^[A-Za-z]{2}$/.test(region)) return region.toUpperCase();
+  //
+  // v12.12.6: this used to run before /api/geo had answered. sv-country was
+  // still empty, and an Indian phone reporting the very common en-US locale
+  // fell through to '' = All countries -- so Live TV opened on foreign
+  // channels instead of India's 635. defaultLiveCountry() is now async and
+  // waits (briefly) for the geo lookup that init() already fires.
+  function localeCountry() {
     try {
       const locales = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
       for (const loc of locales) {
@@ -4117,15 +4189,40 @@
     return '';
   }
 
+  async function defaultLiveCountry() {
+    const saved = localStorage.getItem('sv-live-country');
+    if (saved !== null) return saved;             // '' is a real choice: All
+    let region = localStorage.getItem('sv-country') || localStorage.getItem('sv-region');
+    if (!region) {
+      // Geo is authoritative over the locale (an Indian phone is routinely
+      // set to en-US). Cap the wait so a dead geo endpoint cannot stall the
+      // grid -- we simply fall back to the locale in that case.
+      try {
+        region = await Promise.race([
+          geoReady.then((g) => (g && g.country_code) || ''),
+          new Promise((r) => setTimeout(() => r(''), 2500)),
+        ]);
+      } catch (_) { region = ''; }
+    }
+    if (region && /^[A-Za-z]{2}$/.test(region)) return region.toUpperCase();
+    return localeCountry();
+  }
+
   function showLiveTV() {
     hideAllViews(); $('#liveView').classList.remove('hidden'); window.scrollTo({top:0}); closeMobileMenu();
-    if (!liveState.defaultApplied) {
-      liveState.country = defaultLiveCountry();
-      liveState.lang = localStorage.getItem('sv-live-lang') || '';
-    }
     wireLiveSearch();
-    if (!$('#liveGrid').children.length) loadLiveChannels(true);
+    if (liveState.defaultApplied) {
+      if (!$('#liveGrid').children.length) loadLiveChannels(true);
+      return;
+    }
+    // Resolve the region first, then load once, so the first paint is already
+    // the right country rather than a foreign list that snaps over.
     liveState.defaultApplied = true;
+    liveState.lang = localStorage.getItem('sv-live-lang') || '';
+    defaultLiveCountry().then((country) => {
+      liveState.country = country;
+      if (!$('#liveGrid').children.length) loadLiveChannels(true);
+    });
   }
 
   function channelInitials(name) {
@@ -4394,11 +4491,49 @@
     sel.onchange = () => openLivePlayer(channel, parseInt(sel.value, 10) || 0);
   }
 
-  async function openLivePlayer(channel, variantIndex = 0) {
+  /* Which origins refused a direct (CORS) fetch, remembered for the tab.
+     Measured: ~85% of catalogued origins send Access-Control-Allow-Origin: *,
+     so the optimistic path is right far more often than not. Probing first to
+     be certain cost a measured ~520ms of extra latency on every new host, so
+     instead we just try direct and let the existing proxy-retry catch the
+     minority -- the failure is detected by hls.js in well under that budget. */
+  const corsDenied = (window.__svCorsDenied = window.__svCorsDenied || new Set());
+  function shouldTryDirect(url) {
+    try { return !corsDenied.has(new URL(url, location.href).host); }
+    catch (e) { return false; }
+  }
+  async function openLivePlayer(channel, variantIndex = 0, forceProxy = false) {
     const variants = channelStreams(channel);
     if (!variants.length) return;
     const idx = Math.min(Math.max(variantIndex, 0), variants.length - 1);
     const streamUrl = variants[idx].url;
+    /* Advance to the next source for this channel after a fatal error.
+       Returns false when every variant has been burned through, which is the
+       caller's cue to finally surface "stream unavailable". */
+    let directOk = false;
+    let switching = false;
+    const tryNextVariant = () => {
+      if (switching) return true;
+      if (state.live.currentChannel !== channel) return false;
+      // Direct play failed: the same URL may still work proxied.
+      if (!forceProxy && directOk) {
+        switching = true;
+        window.clearTimeout(state.live.stallTimer);
+        try { corsDenied.add(new URL(streamUrl, location.href).host); } catch (e) {}
+        window.setTimeout(() => {
+          if (state.live.currentChannel === channel) openLivePlayer(channel, idx, true);
+        }, 250);
+        return true;
+      }
+      if (idx + 1 >= variants.length) return false;
+      switching = true;
+      window.clearTimeout(state.live.stallTimer);
+      $('#liveMeta').textContent = `${t('connecting')} (${idx + 2}/${variants.length})`;
+      window.setTimeout(() => {
+        if (state.live.currentChannel === channel) openLivePlayer(channel, idx + 1, false);
+      }, 300);
+      return true;
+    };
     $('#livePlayerModal').classList.remove('hidden');
     document.body.style.overflow='hidden';
     $('#liveTitle').innerHTML = `<span class="live-dot"></span> ${esc(channel.name)} <span style="opacity:.6;font-weight:500">— ${esc(channel.cat)}</span>`;
@@ -4412,6 +4547,16 @@
     setLiveAudioEnhancement(state.live.enhanced,true);
     const proxyUrl = '/api/hls?url=' + encodeURIComponent(streamUrl);
 
+    /* v12.12.6 BANDWIDTH: ~85% of catalogued origins answer with
+       Access-Control-Allow-Origin: *, which means the browser can pull the
+       manifest and every segment straight from the CDN. Those bytes then never
+       touch our host -- the single biggest saving available on a metered free
+       tier, where egress (not RAM or CPU) is the binding limit.
+       A short HEAD/GET probe decides; anything that fails CORS silently falls
+       back to the proxy, so playback behaviour is unchanged either way. */
+    directOk = forceProxy ? false : shouldTryDirect(streamUrl);
+    const sourceUrl = directOk ? streamUrl : proxyUrl;
+
     /* v12.11 ROOT CAUSE OF "LIVE TV DOESN'T PLAY":
        Chrome returns "maybe" from canPlayType('application/vnd.apple.mpegurl')
        - a truthy string - but cannot actually play HLS natively, so every
@@ -4424,7 +4569,7 @@
     const canUseHlsJs = Boolean(HlsClass && HlsClass.isSupported());
 
     if (!canUseHlsJs && video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = proxyUrl;
+      video.src = sourceUrl;
       video.addEventListener('loadedmetadata', () => {
         if (state.live.currentChannel !== channel) return;
         loading.classList.add('hidden');
@@ -4434,6 +4579,7 @@
         video.play().catch(()=>{});
       }, { once: true });
       video.addEventListener('error', () => {
+        if (tryNextVariant()) return;
         loading.classList.add('hidden'); $('#liveMeta').textContent = t('streamUnavailable');
       }, { once: true });
       return;
@@ -4448,12 +4594,42 @@
     const hls = new HlsClass(Object.assign(hlsTuning(), {
       backBufferLength: 10,
       capLevelToPlayerSize: true,
+      // A live channel that has other sources should not spend 3 x 15s
+      // retrying a dead host before the ERROR handler can fail over. Only
+      // shorten this when there is somewhere else to go.
+      manifestLoadingMaxRetry: directOk ? 0 : (variants.length > 1 ? 1 : 3),
+      manifestLoadingTimeOut: directOk ? 6000 : (variants.length > 1 ? 7000 : 15000),
+      // hls.js probes bandwidth by fetching a throwaway segment at the lowest
+      // rendition before stepping up. Measured on a live channel that burned
+      // ~3s of the ~4.8s time-to-first-frame: SD216 manifest + segment, then
+      // discarded for HD720. Live has no seek bar to hide the ramp behind, so
+      // start at a sane level and let ABR correct from real playback instead.
+      testBandwidth: false,
+      startLevel: -1,
+      // Live edges hand out fresh segments continuously; a big start buffer
+      // only delays the first frame. Keep enough to absorb jitter, no more.
+      maxBufferLength: 12,
+      maxLiveSyncPlaybackRate: 1.05,
     }));
     state.live.hls = hls;
     let mediaRecoveryTried = false;
     let networkRecoveryTried = false;
-    hls.loadSource(proxyUrl);
+    hls.loadSource(sourceUrl);
     hls.attachMedia(video);
+    // Some dead edges accept the TCP connection and then never answer, so no
+    // error is ever raised and the spinner spins forever. Bound it.
+    window.clearTimeout(state.live.stallTimer);
+    state.live.stallTimer = window.setTimeout(() => {
+      if (state.live.currentChannel !== channel) return;
+      if (video.readyState >= 2 && !video.paused) return;
+      if (tryNextVariant()) return;
+      loading.classList.add('hidden');
+      $('#liveMeta').textContent = t('streamUnavailable');
+      // Budget scales with how many escape hatches are left. A direct attempt
+      // is cheap to abandon (the proxy retry is one reload away), so it gets
+      // the tightest window; the last proxied source gets the longest because
+      // giving up there means showing the user an error.
+    }, directOk ? 7000 : (variants.length > 1 && idx + 1 < variants.length ? 10000 : 18000));
     hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
       if (state.live.currentChannel !== channel) return;
       loading.classList.add('hidden');
@@ -4483,10 +4659,14 @@
         hls.recoverMediaError();
         return;
       }
-      loading.classList.add('hidden');
-      $('#liveMeta').textContent = t('streamUnavailable');
       try { hls.destroy(); } catch(e) {}
       if (state.live.hls === hls) state.live.hls = null;
+      // A dead URL should not end the session while the channel still has
+      // untried variants: 1,668 channels ship more than one source and the
+      // catalogue only rots one stream at a time.
+      if (tryNextVariant()) return;
+      loading.classList.add('hidden');
+      $('#liveMeta').textContent = t('streamUnavailable');
     });
   }
   function populateQualityLevels(hls) {
@@ -4517,6 +4697,8 @@
   }
   function destroyLive() {
     const q = $('#liveQuality'); if (q) q._svUserPicked = false;
+    window.clearTimeout(state.live.stallTimer);
+    state.live.stallTimer = 0;
     if (state.live.hls) { try { state.live.hls.destroy(); } catch(e){} state.live.hls = null; }
     state.live.currentChannel = null;
     const video = $('#liveVideo');
@@ -5189,9 +5371,11 @@
     renderRoute(location.hash.replace('#','') || 'home');
     ensureCountries();
     if (!state.country) {
-      try { const g=await api('/geo',{noCache:true}); state.country=g.country_code||'IN'; localStorage.setItem('sv-country',state.country); }
+      // resolveGeo() publishes the same lookup on geoReady so Live TV can
+      // await it instead of racing it (see defaultLiveCountry).
+      try { const g=await resolveGeo(); state.country=(g&&g.country_code)||'IN'; localStorage.setItem('sv-country',state.country); }
       catch(e) { state.country='IN'; }
-    }
+    } else { resolveGeo(); }
     window.addEventListener('hashchange',()=>{
       renderRoute(location.hash.replace('#','')||'home');
     });

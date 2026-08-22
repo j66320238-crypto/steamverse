@@ -39,7 +39,7 @@ Manual settings:
 Health response:
 
 ```json
-{"ok":true,"version":"12.12.0","tmdb_configured":true}
+{"ok":true,"version":"12.12.6","tmdb_configured":true}
 ```
 
 Agar `tmdb_configured` `false` aaye to key set nahi hui — movie/TV rows khaali rahenge, anime phir bhi chalega.

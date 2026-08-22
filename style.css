@@ -718,6 +718,62 @@ body.touch .player-nextsrc{opacity:1}
 .lc-meta{font-size:12.5px;color:rgba(255,255,255,.6);margin-top:10px}
 .lc-meta a{color:#9ab5ff;text-decoration:underline}
 
+/* ============================================================
+   v12.12.3 LIVE BAR IS ALWAYS DARK.
+   The bar is hard-coded #0a0a10 in both themes, but .btn-ghost
+   inherits var(--text) -- which is #0d0f1c in light mode. So
+   "Mute" and "PiP" were near-black text on a near-black bar:
+   effectively invisible, which is the "buttons collapse /
+   bekar lagta hai" report. Scope light-on-dark colours to the
+   bar so it is theme-independent.
+   ============================================================ */
+.live-controls-bar .btn,
+.live-controls-bar .btn-ghost{
+  color:#f2f4ff;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.20);
+}
+.live-controls-bar .btn-ghost:hover,
+.live-controls-bar .btn-ghost:focus-visible{
+  background:rgba(255,255,255,.17);
+  border-color:rgba(255,255,255,.34);
+}
+.live-controls-bar .btn.is-on,
+.live-controls-bar .btn-ghost.is-on{
+  color:#b8ffd0;
+  background:rgba(70,211,105,.20);
+  border-color:rgba(70,211,105,.55);
+}
+.live-controls-bar select{
+  color:#fff;
+  background-color:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.20);
+}
+/* The native dropdown list renders with the OS palette, so the options
+   themselves need an explicit pair or they go white-on-white. */
+.live-controls-bar select option{color:#0d0f1c;background:#fff}
+
+/* ---- Phone layout for the live control bar --------------------------
+   Two even columns instead of flex-wrap. Wrapping produced a ragged last
+   row and let a control collapse to its min-content width on narrow
+   phones; a grid keeps every target a predictable, tappable size. */
+/* 900px, not 760: a 768px tablet fell through to the desktop flex-wrap and
+   split the button trio across two ragged rows. */
+@media(max-width:900px){
+  .live-controls-bar{padding:12px 14px 16px}
+  .live-controls-bar .lc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+  .live-controls-bar .lc-ctl{min-width:0}
+  .live-controls-bar .lc-ctl select{width:100%}
+  /* Selects and buttons share ONE .lc-row, so the buttons cannot be targeted
+     by row. Six columns instead: each select spans 3 (= half width), each
+     button spans 2 (= a third), which lands the three buttons on their own
+     tidy line under the selects without any extra markup. */
+  .live-controls-bar .lc-row{grid-template-columns:repeat(6,1fr)}
+  .live-controls-bar .lc-ctl{grid-column:span 3}
+  .live-controls-bar .lc-row>.btn{grid-column:span 2;width:100%;min-width:0;padding-inline:8px;font-size:13px;gap:6px}
+  .live-controls-bar .lc-meta{grid-column:1/-1}
+}
+
 /* ---------- Playlists ---------- */
 .playlists-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:18px}
 .playlist-card{
@@ -1015,6 +1071,29 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 @media(min-width:761px){
   .player-overlay:not(.hidden) .player-stage{align-items:center}
 }
+/* Same theme trap as the live bar: this strip is hard-coded dark in both
+   themes, but .btn/.btn-ghost inherit var(--text), which is near-black
+   (#0d0f1c) in light mode -- so "Direct"/"Settings" turned invisible. */
+.player-overlay:not(.hidden) .pc-lang-row .btn,
+.player-overlay:not(.hidden) .pc-lang-row .btn-ghost{
+  color:#f2f4ff;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.20);
+}
+.player-overlay:not(.hidden) .pc-lang-row .btn-ghost:hover,
+.player-overlay:not(.hidden) .pc-lang-row .btn-ghost:focus-visible{
+  background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.34);
+}
+.player-overlay:not(.hidden) .pc-lang-row .btn.is-on,
+.player-overlay:not(.hidden) .pc-lang-row .btn-ghost.is-on{
+  color:#b8ffd0;background:rgba(70,211,105,.20);border-color:rgba(70,211,105,.55);
+}
+.player-overlay:not(.hidden) .pc-lang-row select{
+  color:#fff;background-color:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.20);
+}
+.player-overlay:not(.hidden) .pc-lang-row select option{color:#0d0f1c;background:#fff}
+
 /* Auto-hide only in fullscreen, where the video is the whole screen. */
 .player:fullscreen .pc-lang-row,
 .player:-webkit-full-screen .pc-lang-row{
@@ -1056,9 +1135,23 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
   }
   .player-overlay:not(.hidden) .lc-ctl{flex:1 1 132px;min-width:0}
   .player-overlay:not(.hidden) .lc-ctl select{width:100%}
-  /* v12.10: these live in the fixed-height strip now and no longer wrap,
-     so they stay visible (Reload becomes icon-only). Kept as a no-op
-     anchor rather than deleted, to document why the old rule went away. */
+  /* v12.12.3: the strip needs 412px of buttons in 367px of phone, so Reload
+     was pushed off the right edge and Direct was clipped. Let the four
+     buttons share the width evenly and shrink their padding instead. */
+  .player-overlay:not(.hidden) #pcBar{gap:5px}
+  /* The flexible spacer exists to push actions right on desktop; on a phone
+     it just steals ~38px from four already-cramped buttons. */
+  .player-overlay:not(.hidden) #pcBar .pc-bar-spacer{display:none}
+  /* Settings was sized by its own content (124px) while the rest were
+     squeezed to 66px; make it share the same flex basis as the others. */
+  .player-overlay:not(.hidden) #pcSettingsBtn{flex:1 1 0;min-width:0}
+  .player-overlay:not(.hidden) #pcBar>.btn{
+    flex:1 1 0;min-width:0;padding-inline:6px;font-size:12.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* Reload is icon-only here; its label would never fit. */
+  .player-overlay:not(.hidden) #pcReload{flex:0 0 44px;padding-inline:0}
+  .player-overlay:not(.hidden) #pcBar .btn svg{flex:0 0 auto}
 }
 
 .anime-video-chip{min-width:74px}
@@ -1066,9 +1159,38 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 .rec-row{scrollbar-width:none}
 .rec-row::-webkit-scrollbar{display:none}
 .rec-card{flex-basis:112px}
+/* ============================================================
+   v12.12.3 PHONE WATCH LAYOUT.
+   The watch player is a two-page snap feed: page 1 = video,
+   page 2 = controls + recommendations, each forced to 100dvh.
+   A 16:9 video on a 390x844 phone is only ~219px tall, so page 1
+   was 219px of picture followed by ~509px of pure black before
+   the recommendations began -- the "bahut bada gap".
+   On phones we drop the forced page height and let the feed be a
+   normal document: video, then controls, then recs, back to back.
+   Desktop keeps the snap feed (>=901px, rules further up).
+   ============================================================ */
+@media(max-width:900px){
+  .player-feed{scroll-snap-type:none}
+  .player-page{min-height:0}
+  .player-stage{
+    height:auto;min-height:0;max-height:none;flex:0 0 auto;
+    padding-top:56px;padding-bottom:0;align-items:flex-start;
+  }
+  /* The fixed bottom bar would otherwise cover the start of the controls. */
+  .player-controls{
+    min-height:0;
+    padding-top:16px;
+    padding-bottom:calc(var(--pc-bar-h,96px) + max(24px,env(safe-area-inset-bottom)));
+  }
+  .player-overlay:not(.hidden) .player-stage{padding-bottom:0}
+  /* Swipe hint belongs to the snap feed; there is nothing to snap to now. */
+  .feed-swipe-hint{display:none}
+  .feed-page-head{margin-bottom:12px}
+}
+
 @media(max-width:760px){
   .player-top{padding-left:12px;padding-right:12px}
-  .player-stage{padding-top:56px}
   .player-video-wrap{width:100%;max-width:100%;max-height:calc(100dvh - 68px - var(--pc-bar-h,96px))}
   .feed-page-head{margin-bottom:14px}
   .feed-page-hint{font-size:11px}
@@ -1083,8 +1205,31 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 }
 /* The Live TV player keeps its header in normal flow; only the movie/anime
    watch feed uses the overlay header. */
-.live-player .player-top{position:relative;pointer-events:auto;padding-top:12px;background:linear-gradient(180deg,rgba(0,0,0,.75),transparent)}
+/* ============================================================
+   v12.12.3 LIVE PLAYER LAYOUT.
+   .player is declared flex-column at :430 but the full-viewport
+   override at :960 re-declares .player WITHOUT display:flex, and
+   being later it wins. The live player therefore had no column
+   layout at all: header + video + control bar stacked to their
+   natural heights (455px on a 844px phone) and everything below
+   was an unpainted black void -- the "bahut bada black gap".
+   Restoring the column and letting the stage absorb the slack
+   fixes it at the source instead of patching heights.
+   ============================================================ */
+.live-player{display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden}
+.live-player .player-top{position:relative;pointer-events:auto;padding-top:12px;background:linear-gradient(180deg,rgba(0,0,0,.75),transparent);flex:0 0 auto}
 .live-player .player-top>*{pointer-events:auto}
+/* The stage takes every pixel the header and the bar do not, and centres the
+   picture inside it, so there is never leftover space under the controls. */
+.live-player .live-stage{flex:0 0 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#000}
+/* Shrink-wrap the stage to the picture's own 16:9 box. Stretching it to the
+   free height just moved the void inside the <video> element as 320px of
+   letterbox; the honest fix is to give the leftover space to the controls,
+   which can actually use it. */
+.live-player .live-video{width:100%;height:auto;aspect-ratio:16/9;max-height:min(56vh,calc(100dvh - 210px));object-fit:contain}
+/* The bar takes the remainder and scrolls internally if the options overflow,
+   so the layout stays exactly one viewport tall on every phone size. */
+.live-player .live-controls-bar{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:max(18px,env(safe-area-inset-bottom))}
 /* On phones the iframe itself fills the whole first snap page. The embedded
    player handles any 16:9 letterboxing internally; this removes the old
    38–42vh half-screen cap. */

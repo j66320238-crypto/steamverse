@@ -15,7 +15,7 @@ const net = require('net');
 const crypto = require('crypto');
 const { extractMovieStreams } = require('./movie-extract');
 
-const VERSION = '12.12.0';
+const VERSION = '12.12.6';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -161,17 +161,155 @@ const langOf = (q) => {
 function cinemetaToTmdbList(metas, mediaType) {
   return {
     results: (metas || []).map((m) => ({
-      id: m.moviedb_id || m.imdb_id || m.id,
+      // v12.12.6: prefer the IMDB id. moviedb_id only resolves through TMDB,
+      // so on a keyless deploy the card carried a numeric id that /api/details
+      // then looked up against Cinemeta -- which speaks IMDB ids -- and 404'd,
+      // leaving every detail modal empty. The IMDB id works for BOTH backends.
+      id: m.imdb_id || m.id || m.moviedb_id,
       media_type: mediaType,
       title: m.name, name: m.name,
       poster_path: m.poster || '', backdrop_path: m.background || '',
       vote_average: parseFloat(m.imdbRating) || 0,
-      release_date: m.released ? String(m.released).slice(0, 10) : (m.year || ''),
-      first_air_date: m.released ? String(m.released).slice(0, 10) : (m.year || ''),
+      // Only populate the date field that matches the media type. Setting both
+      // made the client's mediaOf() -- which treats any first_air_date as a
+      // series marker -- classify every Cinemeta movie as 'tv', so details and
+      // stream lookups were requested with the wrong media kind.
+      release_date: mediaType === 'movie' ? (m.released ? String(m.released).slice(0, 10) : (m.year || '')) : '',
+      first_air_date: mediaType === 'tv' ? (m.released ? String(m.released).slice(0, 10) : (m.year || '')) : '',
       overview: m.description || '',
     })),
   };
 }
+/* ============================================================
+   Keyless genre support (v12.12.6).
+
+   /api/genres and the two /genre browse routes were raw TMDB calls with
+   no backup, so without a key they 503'd and the genre filters on the
+   Movies/TV pages were dead. Cinemeta exposes genre-filtered catalogues
+   (?genre=Action), but keys them by NAME while the client speaks TMDB
+   numeric ids -- so we keep a small id<->name bridge for the genres the
+   two services share.
+   ============================================================ */
+const TMDB_GENRE_IDS = {
+  movie: [
+    [28, 'Action'], [12, 'Adventure'], [16, 'Animation'], [35, 'Comedy'],
+    [80, 'Crime'], [99, 'Documentary'], [18, 'Drama'], [10751, 'Family'],
+    [14, 'Fantasy'], [36, 'History'], [27, 'Horror'], [9648, 'Mystery'],
+    [10749, 'Romance'], [878, 'Sci-Fi'], [53, 'Thriller'], [10752, 'War'],
+    [37, 'Western'],
+  ],
+  tv: [
+    [10759, 'Action'], [16, 'Animation'], [35, 'Comedy'], [80, 'Crime'],
+    [99, 'Documentary'], [18, 'Drama'], [10751, 'Family'], [9648, 'Mystery'],
+    [10764, 'Reality-TV'], [10765, 'Sci-Fi'], [37, 'Western'], [10767, 'Talk-Show'],
+    [10763, 'Documentary'], [10762, 'Family'],
+  ],
+};
+function genreNameFor(media, id) {
+  const row = (TMDB_GENRE_IDS[media === 'tv' ? 'tv' : 'movie'] || []).find((g) => g[0] === Number(id));
+  return row ? row[1] : '';
+}
+function cinemetaGenres(media) {
+  const seen = new Set();
+  const genres = [];
+  for (const [id, name] of TMDB_GENRE_IDS[media === 'tv' ? 'tv' : 'movie'] || []) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    genres.push({ id, name });
+  }
+  return { genres };
+}
+function cinemetaMeta(kind, id) {
+  return cached(`cinmeta:${kind}:${id}`, 60 * 60 * 1000, () =>
+    jfetch(`${CINEMETA}/meta/${kind}/${id}.json`).then((d) => (d && d.meta) || null), true);
+}
+/* Keyless deploys only ever hold IMDB ids, but every direct-stream provider
+   (videasy, vidrock, ...) is keyed by a numeric TMDB id. Cinemeta's meta
+   record carries moviedb_id, so it doubles as a free imdb -> tmdb bridge. */
+async function tmdbIdFromImdb(imdbId, media) {
+  const kind = media === 'tv' ? 'series' : 'movie';
+  const tryKinds = kind === 'series' ? ['series', 'movie'] : ['movie', 'series'];
+  for (const k of tryKinds) {
+    try {
+      const meta = await cinemetaMeta(k, imdbId);
+      const n = parseInt(meta && meta.moviedb_id, 10);
+      if (n > 0) return n;
+    } catch (e) { /* try the other catalogue */ }
+  }
+  return 0;
+}
+/* Cinemeta ships every episode of a series in meta.videos; reshape the
+   requested season into the TMDB /tv/{id}/season/{n} envelope the client
+   already renders. */
+async function cinemetaSeason(id, season) {
+  const meta = await cinemetaMeta('series', id);
+  const videos = (meta && meta.videos) || [];
+  const episodes = videos
+    .filter((v) => Number(v.season) === Number(season))
+    .sort((a, b) => Number(a.number) - Number(b.number))
+    .map((v) => ({
+      id: `${id}:${v.season}:${v.number}`,
+      episode_number: Number(v.number),
+      season_number: Number(v.season),
+      name: v.name || `Episode ${v.number}`,
+      overview: v.overview || '',
+      still_path: v.thumbnail || '',
+      air_date: v.firstAired ? String(v.firstAired).slice(0, 10) : '',
+      vote_average: Number(v.rating) || 0,
+    }));
+  return {
+    id, name: `Season ${season}`, season_number: Number(season),
+    overview: '', poster_path: (meta && meta.poster) || '',
+    episodes, _backup: true,
+  };
+}
+/* Genre-matched fallback recommendations: Cinemeta has no "similar to"
+   endpoint, so pull the title's own genres and return that catalogue
+   minus the title itself. */
+async function cinemetaRecommendations(media, id) {
+  const kind = media === 'tv' ? 'series' : 'movie';
+  const meta = await cinemetaMeta(kind, id);
+  const genres = (meta && (meta.genres || meta.genre)) || [];
+  const picked = Array.isArray(genres) ? genres.slice(0, 2) : [];
+  // cinemetaGenreList returns a TMDB-shaped envelope ({results:[...]}),
+  // not a bare array.
+  const lists = await Promise.all(picked.map((g) =>
+    cinemetaGenreList(kind, g, 0).then((d) => (d && d.results) || []).catch(() => [])));
+  const seen = new Set([String(id)]);
+  const results = [];
+  for (const list of lists) {
+    for (const item of list || []) {
+      if (!item || seen.has(String(item.id))) continue;
+      seen.add(String(item.id));
+      results.push({ ...item, media_type: media, recommendation_reason: 'Similar story and genres' });
+    }
+  }
+  // Some Cinemeta entries carry no genres at all. "Recommendations must
+  // show" is a standing requirement, so fall back to the plain top
+  // catalogue rather than rendering an empty rail.
+  if (!results.length) {
+    const top = await cinemetaGenreList(kind, '', 0).then((d) => (d && d.results) || []).catch(() => []);
+    for (const item of top) {
+      if (!item || seen.has(String(item.id))) continue;
+      seen.add(String(item.id));
+      results.push({ ...item, media_type: media, recommendation_reason: 'Popular right now' });
+    }
+  }
+  return { results: results.slice(0, 30), based_on: { genres: picked }, _backup: true };
+}
+
+function cinemetaGenreList(kind, genreName, skip) {
+  const q = [];
+  if (genreName) q.push('genre=' + encodeURIComponent(genreName));
+  if (skip) q.push('skip=' + skip);
+  const p = `/catalog/${kind}/top${q.length ? '/' + q.join('&') : ''}.json`;
+  return cached('cin:' + p, 20 * 60 * 1000, () =>
+    jfetch(CINEMETA + p).then((d) => {
+      apiHealth.cinemeta = 'ok';
+      return cinemetaToTmdbList(d.metas, kind === 'series' ? 'tv' : 'movie');
+    }).catch((e) => { apiHealth.cinemeta = 'error'; throw e; }), true);
+}
+
 function cinemetaList(kind, search) {
   const p = search ? `/catalog/${kind}/top/search=${encodeURIComponent(search)}.json` : `/catalog/${kind}/top.json`;
   return cached('cin:' + p, 20 * 60 * 1000, () =>
@@ -1005,15 +1143,41 @@ const routes = {
         try {
           const r = await jfetch(`${CINEMETA}/meta/${kind}/${encodeURIComponent(String(id))}.json`);
           const m = (r && r.meta) || {};
+          // Derive the season list from meta.videos so the client can render
+          // its season tabs / episode picker on a keyless deploy.
+          const byS = new Map();
+          for (const v of m.videos || []) {
+            const n = Number(v.season);
+            if (!n || n < 1) continue;
+            byS.set(n, (byS.get(n) || 0) + 1);
+          }
+          const seasons = [...byS.entries()].sort((a, b) => a[0] - b[0]).map(([n, c]) => ({
+            season_number: n, name: `Season ${n}`, episode_count: c, id: `${id}:${n}`,
+            overview: '', poster_path: m.poster || '', air_date: '',
+          }));
+          const dateStr = m.released ? String(m.released).slice(0, 10) : (m.year ? String(m.year).slice(0, 4) : '');
           return {
-            id: m.moviedb_id || m.imdb_id || id,
+            // Keep the id the client already holds (an IMDB id keyless), never
+            // moviedb_id -- swapping it made every follow-up call (season,
+            // recommendations, stream lookup) query an id Cinemeta can't read.
+            id,
+            imdb_id: m.imdb_id || (String(id).startsWith('tt') ? String(id) : ''),
             media_type: media,
             title: m.name, name: m.name, overview: m.description || '',
             poster_path: m.poster || '', backdrop_path: m.background || '',
             vote_average: parseFloat(m.imdbRating) || 0,
-            release_date: m.released ? String(m.released).slice(0, 10) : (m.year || ''),
-            genres: (m.genre || []).map((g) => ({ name: g })),
-            credits: { cast: [] }, similar: { results: [] },
+            runtime: parseInt(m.runtime, 10) || 0,
+            release_date: media === 'movie' ? dateStr : '',
+            first_air_date: media === 'tv' ? dateStr : '',
+            genres: (m.genres || m.genre || []).map((g) => ({ name: g })),
+            ...(media === 'tv' ? { number_of_seasons: seasons.length || 1, number_of_episodes: (m.videos || []).length, seasons } : {}),
+            credits: { cast: (m.cast || []).slice(0, 12).map((n) => ({ name: n, character: '', profile_path: '' })) },
+            // The modal's "More Like This" rail reads d.recommendations /
+            // d.similar straight off the detail payload, so fill it here too
+            // (genre-matched, same source as /api/recommendations).
+            recommendations: { results: await cinemetaRecommendations(media, id).then((r) => r.results.slice(0, 12)).catch(() => []) },
+            similar: { results: [] },
+            _backup: true,
           };
         } catch (e) { throw e; }
       }, 'cinemeta');
@@ -1024,7 +1188,7 @@ const routes = {
     if (!['movie', 'tv'].includes(media)) throw httpError(400, 'invalid media');
     const id = mediaIdOf(q.get('id'));
     const locale = langOf(q);
-    return cached(`recommend:v2:${locale}:${media}:${id}`, 30 * 60 * 1000, async () => {
+    return withBackup(() => cached(`recommend:v2:${locale}:${media}:${id}`, 30 * 60 * 1000, async () => {
       const detail = await tmdb(`/${media}/${id}`, {
         language: locale,
         append_to_response: 'recommendations,similar',
@@ -1056,13 +1220,15 @@ const routes = {
       add(discover.results, 72, origin === 'hi' ? 'More Hindi titles in these genres' : 'Popular in the same genres');
       const results = [...ranked.values()].sort((a, b) => b.score - a.score).map((entry) => entry.item).slice(0, 30);
       return { results, based_on: { genres: genreIds, original_language: origin } };
-    });
+    }), () => cinemetaRecommendations(media, id), 'cinemeta');
   },
 
   '/api/tv/season': async (q) => {
     const id = mediaIdOf(q.get('id'));
     const season = positiveInt(q.get('s') || 1, 'season', 100);
-    return tmdb(`/tv/${id}/season/${season}`, { language: langOf(q) }, 60 * 60 * 1000);
+    return withBackup(
+      () => tmdb(`/tv/${id}/season/${season}`, { language: langOf(q) }, 60 * 60 * 1000),
+      () => cinemetaSeason(id, season), 'cinemeta');
   },
 
   '/api/watch': async (q) => {
@@ -1076,23 +1242,33 @@ const routes = {
 
   '/api/genres': (q) => {
     const media = q.get('media') === 'tv' ? 'tv' : 'movie';
-    return tmdb(`/genre/${media}/list`, { language: langOf(q) }, 24 * 60 * 60 * 1000);
+    return withBackup(
+      () => tmdb(`/genre/${media}/list`, { language: langOf(q) }, 24 * 60 * 60 * 1000),
+      async () => cinemetaGenres(media), 'cinemeta');
   },
   '/api/movie/genre': (q) => {
     const g = positiveInt(q.get('g'), 'genre', 9999);
     const sort = ['popularity.desc', 'vote_average.desc', 'release_date.desc'].includes(q.get('sort')) ? q.get('sort') : 'popularity.desc';
-    return tmdb('/discover/movie', {
-      with_genres: String(g), sort_by: sort,
-      'vote_count.gte': '50', page: pageOf(q), language: langOf(q),
-    });
+    const page = pageOf(q);
+    return withBackup(
+      () => tmdb('/discover/movie', {
+        with_genres: String(g), sort_by: sort,
+        'vote_count.gte': '50', page, language: langOf(q),
+      }),
+      () => cinemetaGenreList('movie', genreNameFor('movie', g), (Number(page) - 1) * 100),
+      'cinemeta');
   },
   '/api/tv/genre': (q) => {
     const g = positiveInt(q.get('g'), 'genre', 9999);
     const sort = ['popularity.desc', 'vote_average.desc', 'first_air_date.desc'].includes(q.get('sort')) ? q.get('sort') : 'popularity.desc';
-    return tmdb('/discover/tv', {
-      with_genres: String(g), sort_by: sort,
-      'vote_count.gte': '50', page: pageOf(q), language: langOf(q),
-    });
+    const page = pageOf(q);
+    return withBackup(
+      () => tmdb('/discover/tv', {
+        with_genres: String(g), sort_by: sort,
+        'vote_count.gte': '50', page, language: langOf(q),
+      }),
+      () => cinemetaGenreList('series', genreNameFor('tv', g), (Number(page) - 1) * 100),
+      'cinemeta');
   },
 
   /* anime */
@@ -1206,13 +1382,24 @@ const routes = {
    * Never throws for "not found": a false `ok` simply means the client keeps
    * the iframe it would have used anyway. */
   '/api/movie/stream': async (q) => {
-    const tmdbId = positiveInt(q.get('tmdb') || q.get('id'), 'tmdb id');
+    const rawId = String(q.get('tmdb') || q.get('id') || '');
     const kind = q.get('type') === 'tv' ? 'tv' : 'movie';
+    // Keyless catalogues hand out IMDB ids; resolve them to the numeric TMDB
+    // id the providers expect before validating.
+    let tmdbId;
+    let imdbFromId = '';
+    if (/^tt\d{5,10}$/.test(rawId)) {
+      imdbFromId = rawId;
+      tmdbId = await tmdbIdFromImdb(rawId, kind);
+      if (!tmdbId) return { ok: false, error: 'no tmdb mapping for ' + rawId, streams: [] };
+    } else {
+      tmdbId = positiveInt(rawId, 'tmdb id');
+    }
     const season = Math.max(1, Math.min(99, parseInt(q.get('season'), 10) || 1));
     const episode = Math.max(1, Math.min(9999, parseInt(q.get('ep') || q.get('episode'), 10) || 1));
     const title = String(q.get('title') || '').slice(0, 120);
     const year = String(q.get('year') || '').slice(0, 4);
-    const imdbId = /^tt\d{5,10}$/.test(String(q.get('imdb') || '')) ? String(q.get('imdb')) : '';
+    const imdbId = /^tt\d{5,10}$/.test(String(q.get('imdb') || '')) ? String(q.get('imdb')) : imdbFromId;
     const wantLang = String(q.get('lang') || '').toLowerCase().slice(0, 3).replace(/[^a-z]/g, '');
 
     const cacheKey = `moviestream:${kind}:${tmdbId}:${season}:${episode}:${wantLang}`;
@@ -1278,7 +1465,23 @@ const routes = {
       return { data: alMediaToJikan(d.Media) };
     };
     if (source === 'anilist') return primary();
-    return withBackup(primary, () => jikan(`/anime/${id}/full`), 'jikan');
+    // AniList has been returning 403 ("temporarily disabled") for extended
+    // spells and Jikan 504s per-title when MyAnimeList refuses it, so the
+    // anime tab had a single point of failure. Try /full, then the lighter
+    // /anime/{id}, then the search index -- each one is a separate MAL path
+    // and they do not fail together.
+    const jikanChain = async () => {
+      const attempts = [`/anime/${id}/full`, `/anime/${id}`];
+      let lastErr;
+      for (const path of attempts) {
+        try {
+          const r = await jikan(path);
+          if (r && r.data) return r;
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error('anime details unavailable');
+    };
+    return withBackup(primary, jikanChain, 'jikan');
   },
   '/api/anime/recommendations': async (q) => {
     const id = positiveInt(q.get('id'), 'anime id');
@@ -1895,6 +2098,42 @@ function sendJson(res, code, data, reqHeaders, options = {}) {
   negotiateCompression(reqHeaders, headers, body, code, res, options.head);
 }
 
+// ---------------------------------------------------------------------------
+// Compression back-pressure.
+//
+// Every zlib async call allocates a native compressor context off-heap and
+// queues work on libuv's 4-thread pool. Under a burst (thousands of concurrent
+// API requests) Node happily allocates thousands of those contexts before the
+// pool drains any of them; measured peak RSS hit 1052 MB for 12k concurrent API
+// requests, which OOM-kills a 512 MB Render instance (exit 137).
+//
+// Two defences, both measured:
+//   1. compCache — identical response bodies compress to identical bytes, and a
+//      burst is overwhelmingly the SAME hot endpoints. Hash the body once and
+//      reuse the result, so N concurrent /api/trending cost one compression.
+//   2. compGate — a hard ceiling on compressions in flight. Past the ceiling we
+//      send the response uncompressed rather than queueing unbounded native
+//      contexts. Slightly more egress for a few requests beats a dead process.
+const COMP_CACHE_MAX = 96;
+const COMP_MAX_INFLIGHT = 24;
+const COMP_CACHE_MAX_BYTES = 512 * 1024;
+const compCache = new Map();
+let compInflight = 0;
+
+function compCacheGet(key) {
+  const hit = compCache.get(key);
+  if (!hit) return null;
+  // refresh LRU position
+  compCache.delete(key);
+  compCache.set(key, hit);
+  return hit;
+}
+
+function compCacheSet(key, value) {
+  compCache.set(key, value);
+  while (compCache.size > COMP_CACHE_MAX) compCache.delete(compCache.keys().next().value);
+}
+
 function negotiateCompression(reqHeaders, headers, body, code, res, head = false, prepared = null) {
   const ae = (reqHeaders['accept-encoding'] || '').toLowerCase();
   const finish = (payload, encoding) => {
@@ -1904,13 +2143,38 @@ function negotiateCompression(reqHeaders, headers, body, code, res, head = false
     return head ? res.end() : res.end(payload);
   };
   if (body.length < 1024 || !COMPRESSIBLE.test(headers['Content-Type'] || '')) return finish(body);
-  if (ae.includes('br')) {
-    if (prepared && prepared.br) return finish(prepared.br, 'br');
-    zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }, (err, cmp) => finish(err ? body : cmp, err ? null : 'br'));
-  } else if (ae.includes('gzip')) {
-    if (prepared && prepared.gzip) return finish(prepared.gzip, 'gzip');
-    zlib.gzip(body, { level: 6 }, (err, cmp) => finish(err ? body : cmp, err ? null : 'gzip'));
-  } else return finish(body);
+
+  const wantBr = ae.includes('br');
+  const wantGzip = !wantBr && ae.includes('gzip');
+  if (!wantBr && !wantGzip) return finish(body);
+
+  const enc = wantBr ? 'br' : 'gzip';
+  if (prepared && prepared[enc]) return finish(prepared[enc], enc);
+
+  // 1. identical-body cache
+  const cacheable = body.length <= COMP_CACHE_MAX_BYTES;
+  let key = null;
+  if (cacheable) {
+    key = enc + ':' + crypto.createHash('sha1').update(body).digest('base64');
+    const hit = compCacheGet(key);
+    if (hit) return finish(hit, enc);
+  }
+
+  // 2. in-flight ceiling — shed to identity instead of queueing native contexts
+  if (compInflight >= COMP_MAX_INFLIGHT) return finish(body);
+
+  compInflight++;
+  const done = (err, cmp) => {
+    compInflight--;
+    if (err || !cmp) return finish(body);
+    if (key) compCacheSet(key, cmp);
+    return finish(cmp, enc);
+  };
+  if (wantBr) {
+    zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }, done);
+  } else {
+    zlib.gzip(body, { level: 6 }, done);
+  }
 }
 
 const staticCache = new Map();
@@ -2039,8 +2303,37 @@ server.requestTimeout = 30000;
 server.listen(PORT, HOST, () => {
   console.log(`StreamVerse v${VERSION} → http://${HOST}:${PORT}`);
   console.log(`Static: ${PUBLIC_DIR}`);
-  console.log(`TMDB: ${TMDB_KEY ? 'configured' : 'missing (set TMDB_KEY on Render)'}`);
+  console.log(`TMDB: ${TMDB_KEY ? 'configured' : 'missing (set TMDB_KEY)'}`);
+  startKeepAlive();
 });
+
+/* Free hosting tiers (Render free, Koyeb, Back4app) suspend a service after
+   ~15 minutes with no inbound traffic, and the next visitor then waits 30-60s
+   for a cold start. Pinging our own public URL keeps the instance warm.
+   Opt-in: set KEEPALIVE_URL to the app's public https URL. Render and Koyeb
+   both expose that automatically, so it usually needs no configuration.
+   A ping is only worth doing when the host actually sleeps, hence the
+   explicit env rather than always-on. */
+function startKeepAlive() {
+  const url =
+    process.env.KEEPALIVE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.KOYEB_PUBLIC_DOMAIN ? `https://${process.env.KOYEB_PUBLIC_DOMAIN}` : '');
+  if (!url || process.env.KEEPALIVE === 'off') return;
+
+  const target = url.replace(/\/+$/, '') + '/api/health';
+  const everyMs = Math.max(Number(process.env.KEEPALIVE_MINUTES) || 12, 5) * 60 * 1000;
+  console.log(`Keep-alive: pinging ${target} every ${Math.round(everyMs / 60000)} min`);
+
+  const timer = setInterval(() => {
+    const ctrl = new AbortController();
+    const bail = setTimeout(() => ctrl.abort(), 10000);
+    fetch(target, { signal: ctrl.signal, headers: { 'User-Agent': 'streamverse-keepalive' } })
+      .catch(() => { /* a failed ping is not worth logging every 12 min */ })
+      .finally(() => clearTimeout(bail));
+  }, everyMs);
+  timer.unref?.();
+}
 
 function shutdown(signal) {
   console.log(`${signal}: closing server`);
