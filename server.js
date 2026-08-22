@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
 
-const VERSION = '12.5.0';
+const VERSION = '12.6.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';

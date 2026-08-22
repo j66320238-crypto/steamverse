@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.5.0';
+  const APP_VERSION = '12.6.0';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -3302,8 +3302,11 @@
     loadStream(true);
     toast(t('reload'));
   };
-  $('#playerFs').onclick=()=>{
-    const el=document.querySelector('#playerModal .player');
+  // Fullscreen must target the whole player shell, never the bare <video>.
+  // Fullscreening the media element hands the screen to the browser's own
+  // chrome and our quality / audio / speed controls disappear with it.
+  function togglePlayerFullscreen() {
+    const el = document.querySelector('#playerModal .player');
     if (!el) return;
     if (!document.fullscreenElement) {
       const enter = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
@@ -3312,7 +3315,50 @@
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
       if (exit) exit.call(document);
     }
-  };
+  }
+  $('#playerFs').onclick = togglePlayerFullscreen;
+
+  // Chrome's native "fullscreen" button lives inside the video's own shadow
+  // controls. Intercept the resulting fullscreenchange: if the video element
+  // itself went fullscreen, bounce back out and fullscreen the shell instead
+  // so the language/quality row stays on screen.
+  // Touch devices never fire :hover, so the fullscreen control bar needs an
+  // explicit reveal: any tap or pointer move shows it, then it auto-hides.
+  let fsBarTimer = null;
+  function revealFullscreenBar() {
+    const shell = document.querySelector('#playerModal .player');
+    if (!shell || !document.fullscreenElement) return;
+    shell.classList.add('fs-bar-on');
+    clearTimeout(fsBarTimer);
+    fsBarTimer = setTimeout(() => {
+      // Don't yank it away while the user is inside a dropdown.
+      const row = document.querySelector('#playerModal .pc-lang-row');
+      if (row && row.contains(document.activeElement)) return;
+      shell.classList.remove('fs-bar-on');
+    }, 3200);
+  }
+  ['pointermove', 'pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, () => {
+      if (document.fullscreenElement) revealFullscreenBar();
+    }, { passive: true });
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    const video = $('#playerVideo');
+    const shell = document.querySelector('#playerModal .player');
+    if (!video || !shell) return;
+    if (document.fullscreenElement) revealFullscreenBar();
+    else shell.classList.remove('fs-bar-on');
+    if (document.fullscreenElement === video) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) {
+        Promise.resolve(exit.call(document)).then(() => {
+          const enter = shell.requestFullscreen || shell.webkitRequestFullscreen;
+          if (enter) { try { enter.call(shell); } catch (e) {} }
+        }).catch(() => {});
+      }
+    }
+  });
   $('#pcPrev').onclick=()=>{
     const p=state.player;
     if(p.media==='anime'&&p.animeDirect){
