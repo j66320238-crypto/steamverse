@@ -15,7 +15,7 @@ const net = require('net');
 const crypto = require('crypto');
 const { extractMovieStreams } = require('./movie-extract');
 
-const VERSION = '12.9.0';
+const VERSION = '12.11.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -757,6 +757,53 @@ const routes = {
     tmdb_configured: Boolean(TMDB_KEY),
   }),
 
+  /* Live TV catalogue. Search/filter runs on the server so the browser never
+     downloads several MB of channel JSON just to render 60 cards. */
+  '/api/channels': async (q) => {
+    const all = channelCatalogue.channels || [];
+    const search = String(q.get('q') || '').trim().toLowerCase().slice(0, 60);
+    const cat = String(q.get('cat') || '').trim();
+    const country = String(q.get('country') || '').trim().toUpperCase();
+    const limit = Math.min(Math.max(parseInt(q.get('limit'), 10) || 60, 1), 200);
+    const offset = Math.max(parseInt(q.get('offset'), 10) || 0, 0);
+
+    let list = all;
+    if (cat && cat !== 'All') list = list.filter((c) => c.cat === cat);
+    if (country) list = list.filter((c) => c.country === country);
+    if (search) {
+      // Match the display name first, then alternate names, so "star" ranks
+      // "Star Plus" above a channel that merely has it as an alias.
+      const scored = [];
+      for (const c of list) {
+        const name = c.name.toLowerCase();
+        let score = -1;
+        if (name === search) score = 0;
+        else if (name.startsWith(search)) score = 1;
+        else if (name.includes(search)) score = 2;
+        else if ((c.alt || []).some((a) => String(a).toLowerCase().includes(search))) score = 3;
+        if (score >= 0) scored.push([score, c]);
+      }
+      scored.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));
+      list = scored.map((x) => x[1]);
+    }
+
+    const cats = {};
+    for (const c of all) cats[c.cat] = (cats[c.cat] || 0) + 1;
+    const countries = {};
+    for (const c of all) if (c.country) countries[c.country] = (countries[c.country] || 0) + 1;
+
+    return {
+      ok: true,
+      total: list.length,
+      catalogueTotal: all.length,
+      generated: channelCatalogue.generated,
+      probed: Boolean(channelCatalogue.probed),
+      categories: cats,
+      countries,
+      channels: list.slice(offset, offset + limit),
+    };
+  },
+
   '/api/ping': async (q) => {
     // lightweight heartbeat. client sends &t=<token>; server keeps it live.
     const supplied = String(q.get('t') || '').slice(0, 96);
@@ -1398,9 +1445,42 @@ function derivedHlsEntry(host) {
   return hit;
 }
 
+/* ============================================================
+   LIVE TV CATALOGUE (channels.json, built by tools/build-channels.js)
+   The proxy allowlist cannot be a hand-written list once there are
+   thousands of channels, so the catalogue itself is the allowlist:
+   a host is proxyable precisely because a channel in the shipped,
+   probed catalogue points at it. Nothing else is granted access.
+   ============================================================ */
+const CHANNELS_FILE = path.join(__dirname, 'channels.json');
+let channelCatalogue = { generated: null, count: 0, channels: [] };
+const CHANNEL_HOSTS = new Set();
+
+function loadChannelCatalogue() {
+  try {
+    const raw = fs.readFileSync(CHANNELS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed.channels) ? parsed.channels : [];
+    CHANNEL_HOSTS.clear();
+    for (const ch of list) {
+      for (const st of ch.streams || []) {
+        try { CHANNEL_HOSTS.add(new URL(st.url).hostname.toLowerCase()); }
+        catch (_) { /* skip malformed */ }
+      }
+    }
+    channelCatalogue = parsed;
+    console.log(`Live TV: ${list.length} channels, ${CHANNEL_HOSTS.size} stream hosts`);
+  } catch (e) {
+    console.warn('Live TV catalogue unavailable:', e.message);
+    channelCatalogue = { generated: null, count: 0, channels: [] };
+  }
+}
+loadChannelCatalogue();
+
 function allowedHlsHost(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
   return HLS_ALLOWED_EXACT.has(host)
+    || CHANNEL_HOSTS.has(host)
     || HLS_ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix))
     || HLS_ALLOWED_PATTERNS.some((re) => re.test(host))
     || !!derivedHlsEntry(host);

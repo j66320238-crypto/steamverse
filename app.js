@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.9.0';
+  const APP_VERSION = '12.11.0';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -28,9 +28,18 @@
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const IMG = 'https://image.tmdb.org/t/p/w342';
-  const IMG_LARGE = 'https://image.tmdb.org/t/p/w500';
-  const BACKDROP = 'https://image.tmdb.org/t/p/w1280';
+  /* v12.10: on Save-Data or a 2G/3G connection every poster drops a size.
+     A home screen is ~110 posters; w342 -> w185 is roughly 60% less image
+     data for artwork that renders into a 140px-wide box anyway. */
+  const SAVE_DATA = (() => {
+    try {
+      const c = navigator.connection || {};
+      return Boolean(c.saveData) || /^(slow-2g|2g|3g)$/.test(c.effectiveType || '');
+    } catch (_) { return false; }
+  })();
+  const IMG = SAVE_DATA ? 'https://image.tmdb.org/t/p/w185' : 'https://image.tmdb.org/t/p/w342';
+  const IMG_LARGE = SAVE_DATA ? 'https://image.tmdb.org/t/p/w342' : 'https://image.tmdb.org/t/p/w500';
+  const BACKDROP = SAVE_DATA ? 'https://image.tmdb.org/t/p/w780' : 'https://image.tmdb.org/t/p/w1280';
   const CAST_IMG = 'https://image.tmdb.org/t/p/w185';
 
   const TMDB_KEY = ''; // Keep the production key on Render as TMDB_KEY; never send it to the browser
@@ -81,11 +90,13 @@
       actionAdventure: 'Action & Adventure', browse: 'Browse', back: 'Back', loadMore: 'Load more',
       noTitles: 'No titles found. Try something else.', newPlaylist: 'New Playlist', backPlaylists: '‹ Back to playlists',
       rename: 'Rename', liveSub: '24/7 public channels — availability can change by region.', watchingNow: 'watching now',
+      liveSearchPh: 'Search channels — Aaj Tak, Star, Sony…', liveNoMatch: 'No channels match that search.',
+      loadMore: 'Load more', source: 'Source', loading: 'Loading…',
       nowPlaying: 'Now Playing', audio: 'Audio', preferredAudio: 'Preferred audio', audioPreferenceSetting: 'Preferred Audio', audioPreferenceSettingNote: 'Requests this audio from compatible players; unavailable dubs cannot be created by the site.',
       audioNote: 'Audio tracks depend on the selected provider. Use the provider player menu if your preference is unavailable.',
       swipeRecommendations: 'Swipe up for recommendations', recommended: 'Recommended for you', seeAllUp: 'See all ↑',
       swipeDown: 'Swipe down to return', reload: 'Reload', youMayLike: 'You may also like', episodes: 'Episodes',
-      source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio', voiceBoost: 'Voice Boost', voiceBoostOn: 'Voice Boost enabled', voiceBoostOff: 'Voice Boost disabled', voiceVolume: 'Voice Volume',
+      source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio', playbackSettings: 'Playback settings', settingsShort: 'Settings', voiceBoost: 'Voice Boost', voiceBoostOn: 'Voice Boost enabled', voiceBoostOff: 'Voice Boost disabled', voiceVolume: 'Voice Volume',
       directMode: 'Direct', embedMode: 'Embedded', directModeHint: 'Direct playback: quality, language and speed work in our own player',
       directOn: 'Direct playback on', directOff: 'Using the provider player', directUnavailable: 'No direct stream for this title — using the provider player',
       settings: 'Settings', interfaceLanguage: 'Interface Language',
@@ -151,12 +162,14 @@
       actionAdventure: 'एक्शन और एडवेंचर', browse: 'ब्राउज़ करें', back: 'वापस', loadMore: 'और दिखाएँ',
       noTitles: 'कोई शीर्षक नहीं मिला। कुछ और खोजें।', newPlaylist: 'नई प्लेलिस्ट', backPlaylists: '‹ प्लेलिस्ट पर वापस',
       rename: 'नाम बदलें', liveSub: '24/7 सार्वजनिक चैनल — उपलब्धता क्षेत्र के अनुसार बदल सकती है।', watchingNow: 'अभी देख रहे हैं',
+      liveSearchPh: 'चैनल खोजें — आज तक, स्टार, सोनी…', liveNoMatch: 'इस खोज से कोई चैनल नहीं मिला।',
+      loadMore: 'और दिखाएँ', source: 'स्रोत', loading: 'लोड हो रहा है…',
       nowPlaying: 'अभी चल रहा है', audio: 'ऑडियो', preferredAudio: 'पसंदीदा ऑडियो', audioPreferenceSetting: 'पसंदीदा ऑडियो', audioPreferenceSettingNote: 'संगत प्लेयर से यह ऑडियो माँगा जाएगा; जो डब मौजूद नहीं है उसे साइट बना नहीं सकती।',
       audioNote: 'ऑडियो ट्रैक चुने गए प्रदाता पर निर्भर हैं। भाषा न मिले तो वीडियो प्लेयर के मेनू में चुनें।',
       swipeRecommendations: 'सुझावों के लिए ऊपर स्वाइप करें', recommended: 'आपके लिए सुझाव', seeAllUp: 'सभी देखें ↑',
       swipeDown: 'वापस आने के लिए नीचे स्वाइप करें', reload: 'फिर लोड करें', youMayLike: 'आपको यह भी पसंद आ सकता है',
       episodes: 'एपिसोड', source: 'सर्वर', prev: '‹ पिछला', next: 'अगला ›', mute: 'म्यूट', unmute: 'आवाज़ चालू',
-      clearAudio: 'साफ़ ऑडियो', voiceBoost: 'वॉइस बूस्ट', voiceBoostOn: 'वॉइस बूस्ट चालू', voiceBoostOff: 'वॉइस बूस्ट बंद', voiceVolume: 'आवाज़ की ताकत',
+      clearAudio: 'साफ़ ऑडियो', playbackSettings: 'प्लेबैक सेटिंग्स', settingsShort: 'सेटिंग्स', voiceBoost: 'वॉइस बूस्ट', voiceBoostOn: 'वॉइस बूस्ट चालू', voiceBoostOff: 'वॉइस बूस्ट बंद', voiceVolume: 'आवाज़ की ताकत',
       directMode: 'डायरेक्ट', embedMode: 'एम्बेडेड', directModeHint: 'डायरेक्ट प्लेबैक: क्वालिटी, भाषा और स्पीड हमारे अपने प्लेयर में काम करती हैं',
       directOn: 'डायरेक्ट प्लेबैक चालू', directOff: 'प्रोवाइडर का प्लेयर इस्तेमाल हो रहा है', directUnavailable: 'इस टाइटल के लिए डायरेक्ट स्ट्रीम नहीं मिली — प्रोवाइडर प्लेयर चल रहा है', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
       interfaceLanguageNote: 'वेबसाइट के बटन, मेनू और संदेशों की भाषा बदलती है।', contentLanguage: 'शीर्षक और विवरण की भाषा', contentLanguageNote: 'जहाँ अनुवाद उपलब्ध है, शीर्षक और विवरण इसी भाषा में दिखेंगे।',
@@ -347,62 +360,6 @@
   }
 
   /* ========= LIVE TV CHANNELS (free public HLS) ========= */
-  const LIVE_CHANNELS = [
-    // India — verified public broadcaster/news manifests (checked 2026-08-22)
-    { cat: 'News', name: 'Aaj Tak HD', logo: '🇮🇳', url: 'https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8' },
-    { cat: 'News', name: 'India Today', logo: '🇮🇳', url: 'https://indiatodaylive.akamaized.net/hls/live/2014320/indiatoday/indiatodaylive/playlist.m3u8' },
-    { cat: 'News', name: 'NDTV 24x7', logo: '🇮🇳', url: 'https://ndtv24x7elemarchana.akamaized.net/hls/live/2003678/ndtv24x7/master.m3u8' },
-    { cat: 'News', name: 'NDTV India', logo: '🇮🇳', url: 'https://ndtvindiaelemarchana.akamaized.net/hls/live/2003679/ndtvindia/master.m3u8' },
-    { cat: 'News', name: 'ABP News', logo: '🇮🇳', url: 'https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/abpnews-livetv/master.m3u8' },
-    { cat: 'News', name: 'DD News', logo: '🇮🇳', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/0811cd8c37ca4c409d5385a6cd2fa18b/index.m3u8' },
-    { cat: 'News', name: 'News18 India', logo: '🇮🇳', url: 'https://n18syndication.akamaized.net/bpk-tv/News18_India_NW18_MOB/output01/master.m3u8' },
-    { cat: 'News', name: 'News18 Bihar Jharkhand', logo: '📍', url: 'https://n18syndication.akamaized.net/bpk-tv/News18_Bihar_Jharkhand_NW18_MOB/output01/master.m3u8' },
-    { cat: 'News', name: 'CNBC TV18', logo: '📈', url: 'https://n18syndication.akamaized.net/bpk-tv/CNBC_TV18_NW18_MOB/output01/index.m3u8' },
-    { cat: 'News', name: 'WION', logo: '🌐', url: 'https://d7x8z4yuq42qn.cloudfront.net/index_1.m3u8' },
-    { cat: 'News', name: 'Republic TV', logo: '🇮🇳', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/2e31d831f08640ff92f65003bdc89991/index.m3u8' },
-    { cat: 'News', name: 'Republic Bharat', logo: '🇮🇳', url: 'https://vg-republictvlive.akamaized.net/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/vglive-sk-275673/main.m3u8' },
-    { cat: 'News', name: 'CNBC Awaaz', logo: '📈', url: 'https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8' },
-    { cat: 'News', name: 'Good News Today', logo: '📰', url: 'https://cc-89m9zu7a2upfe.akamaized.net/hls/live/2016145/gnt/gntlive/playlist.m3u8' },
-    { cat: 'News', name: 'Zee Business', logo: '💹', url: 'https://dwby15d04agvq.cloudfront.net/index_5.m3u8' },
-    { cat: 'News', name: 'TV9 Bharatvarsh', logo: '🇮🇳', url: 'https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9hinjzgtpe/liveabr/playlist.m3u8' },
-    { cat: 'News', name: 'News Nation', logo: '🗞️', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/6cd2f649739a45ca9de1daf81cc7d0f2/index.m3u8' },
-    { cat: 'News', name: 'Kashish News', logo: '📍', url: 'https://server.thelegitpro.in/kashishnews/kashishnews/index.m3u8' },
-
-    // Public-service channels
-    { cat: 'Education', name: 'DD National', logo: '📺', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8' },
-    { cat: 'Education', name: 'DD Bihar', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/380b0765f87741a4812bc952ec6fbf21/index.m3u8' },
-    { cat: 'Education', name: 'DD Kisan', logo: '🌾', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/4f053f2c12a24641bf701fb7f2376750/index.m3u8' },
-    { cat: 'Education', name: 'Sansad TV 1', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/fff8f20221d5456e8922e689d71dedc3/index.m3u8' },
-    { cat: 'Education', name: 'Sansad TV 2', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/e4182054dce340da9e0ff38b6b3658a4/index.m3u8' },
-    { cat: 'Sports', name: 'DD Sports', logo: '🏅', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8' },
-    { cat: 'Education', name: 'DD Uttar Pradesh', logo: '🏛️', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/70d4f6874fa64032a685e3123520f07d/index.m3u8' },
-    { cat: 'Education', name: 'DD Rajasthan', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/5b6bbbf682b741ecbe279f75a4a9a3e6/index.m3u8' },
-    { cat: 'Education', name: 'DD India', logo: '🌏', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/ceda14583477426aa162a65392d8ea07/index.m3u8' },
-    { cat: 'Education', name: 'DD Urdu', logo: '📺', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/9b91e9007e754db39a8b32c6bfc5b24a/index.m3u8' },
-    { cat: 'Education', name: 'DD Jharkhand', logo: '📍', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/e8c3741f8c154d3185831f4e31777fb2/index.m3u8' },
-
-    // Free-to-air entertainment
-    { cat: 'Entertainment', name: 'Dangal TV', logo: '🎭', url: 'https://live-dangal.akamaized.net/liveabr/playlist.m3u8' },
-    { cat: 'Entertainment', name: 'Dangal 2', logo: '🎭', url: 'https://live-dangal2.akamaized.net/liveabr/playlist.m3u8' },
-    { cat: 'Entertainment', name: 'Shemaroo TV', logo: '🎞️', url: 'https://airtelapp.shemaroo.com/shemarootv/smil:shemarootvadp.smil/playlist.m3u8' },
-    { cat: 'Entertainment', name: 'Shemaroo Umang', logo: '✨', url: 'https://airtelapp.shemaroo.com/shemarooumang/smil:shemarooumangadp.smil/playlist.m3u8' },
-    { cat: 'Entertainment', name: 'PTC Punjabi', logo: '🪯', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/3e22a9c278db4e3eb779afd42e41b0a6/index.m3u8' },
-    { cat: 'Movies', name: 'Bhojpuri Cinema', logo: '🎬', url: 'https://live-bhojpuri.akamaized.net/liveabr/playlist.m3u8' },
-    { cat: 'Music', name: '9XM', logo: '🎵', url: 'https://9xjio.wiseplayout.com/9XM/master.m3u8' },
-    { cat: 'Music', name: '9X Jalwa', logo: '🎶', url: 'https://wiselp.wiseplayout.com/9X_Jalwa/master.m3u8' },
-    { cat: 'Music', name: '9X Jhakaas', logo: '🎼', url: 'https://wiselp.wiseplayout.com/9X_Jhakaas/master.m3u8' },
-    { cat: 'Music', name: '9X Tashan', logo: '🎤', url: 'https://wiselp.wiseplayout.com/9X_Tashan/master.m3u8' },
-    { cat: 'Spiritual', name: 'Aastha', logo: '🕉️', url: 'https://aasthaott.akamaized.net/110923/smil:aasthatv.smil/index.m3u8' },
-    { cat: 'Sports', name: 'Red Bull TV', logo: '🏎️', url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8' },
-
-    // International public streams
-    { cat: 'News', name: 'France 24 English', logo: '🇫🇷', url: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8' },
-    { cat: 'News', name: 'DW English', logo: '🇩🇪', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
-    { cat: 'News', name: 'Euronews English', logo: '🇪🇺', url: 'https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8' },
-    { cat: 'News', name: 'TRT World', logo: '🇹🇷', url: 'https://tv-trtworld.medya.trt.com.tr/master.m3u8' },
-    { cat: 'Entertainment', name: 'Arirang TV', logo: '🇰🇷', url: 'https://amdlive-ch01-ctnd-com.akamaized.net/arirang_1ch/smil:arirang_1ch.smil/playlist.m3u8' },
-    { cat: 'News', name: 'Al Jazeera Arabic', logo: '🇶🇦', url: 'https://live-hls-web-aja.getaj.net/AJA/01.m3u8' },
-  ];
 
   function readStoredJson(key, fallback) {
     try {
@@ -456,7 +413,7 @@
            verified stream for the current title, one per language, so the
            audio menu can offer real choices; `directPreferred` is the user's
            toggle between direct and embedded playback. */
-        directActive: false, directStreams: [], directSubtitles: [], directLang: '',
+        directActive: false, directStreams: [], directSubtitles: [], directLang: '', directIndex: 0,
         directPreferred: localStorage.getItem('sv-direct') !== '0',
       };
     })(),
@@ -1140,11 +1097,18 @@
     const hash = (nav||location.hash.replace('#','')||'home').toLowerCase();
     $$('#navLinks a, #mobileMenu a').forEach((a)=>a.classList.toggle('active', a.dataset.nav===hash));
   }
+  /* #hero belongs to the home view. It was missing from this list, so every
+     other section (Live TV, My List, search results, playlists) rendered
+     ~830px below an unrelated hero banner and looked empty until you
+     scrolled. It is restored explicitly by showHome(). */
   function hideAllViews() {
-    ['#content','#resultsView','#mylistView','#playlistsView','#playlistDetailView','#liveView'].forEach((s)=>$(s).classList.add('hidden'));
+    ['#content','#resultsView','#mylistView','#playlistsView','#playlistDetailView','#liveView','#hero']
+      .forEach((s)=>{ const el=$(s); if (el) el.classList.add('hidden'); });
   }
   function showHome() {
-    hideAllViews(); $('#content').classList.remove('hidden');
+    hideAllViews();
+    const hero = $('#hero'); if (hero) hero.classList.remove('hidden');
+    $('#content').classList.remove('hidden');
     if (!state.homeLoaded) loadHome();
     window.scrollTo({top:0,behavior:'smooth'}); closeMobileMenu();
   }
@@ -2022,6 +1986,7 @@
     });
     // Keep the user's choice selected across a legitimate rebuild.
     if (previous && items.some((item) => item.value === previous)) select.value = previous;
+    if (typeof syncBarSummary === 'function') syncBarSummary();
     return true;
   }
 
@@ -2041,10 +2006,23 @@
       value: 'aud:' + track.index, label: track.label,
     })));
     select.disabled = false;
-    control?.classList.remove('hidden', 'anime-hidden', 'ctl-unsupported');
-    control?.setAttribute('data-note', state.uiLang === 'hi'
-      ? `${p.nativeAudio.length} भाषाएँ उपलब्ध`
-      : `${p.nativeAudio.length} languages available`);
+
+    /* Movies and TV list these same tracks in the main Audio menu, which is
+       where a viewer actually looks for a language; showing the anime-labelled
+       dropdown as well would just duplicate them under a confusing name. */
+    const mergeIntoAudioMenu = (p.media === 'movie' || p.media === 'tv') && p.directActive;
+    if (mergeIntoAudioMenu) {
+      /* Movies/TV surface these in the main Audio menu. This one is
+         genuinely redundant there, and it lives inside the settings sheet
+         (not the always-on strip), so removing it cannot shift anything
+         the user is currently reaching for. */
+      control?.classList.add('hidden');
+    } else {
+      control?.classList.remove('hidden', 'anime-hidden', 'ctl-unsupported');
+      control?.setAttribute('data-note', state.uiLang === 'hi'
+        ? `${p.nativeAudio.length} भाषाएँ उपलब्ध`
+        : `${p.nativeAudio.length} languages available`);
+    }
 
     // Pick the user's saved language if this episode actually has it, else the
     // site language, else English, else whatever came first.
@@ -2066,6 +2044,9 @@
       status.className = 'audio-track-status confirmed';
       status.textContent = '✓ ' + (active ? active.label.split(' / ')[0] : 'AUDIO');
     }
+    // Now that the tracks and the chosen one are known, fold them into the
+    // main Audio menu. Done last so the preferred-language pick above still runs.
+    if (mergeIntoAudioMenu) syncDirectLanguageOptions();
     return true;
   }
 
@@ -2104,7 +2085,18 @@
     setSelectOptions(select, [{ value: 'off', label: t('subtitlesOff') || 'Off' }].concat(
       list.map((track, index) => ({ value: String(index), label: track.label || `Track ${index + 1}` }))
     ));
-    control.classList.toggle('hidden', !list.length);
+    /* v12.10: do NOT hide. A control vanishing/appearing re-flowed the
+       whole row and moved other options out from under the user's finger.
+       It keeps its slot and explains itself instead. */
+    control.classList.remove('hidden');
+    control.classList.toggle('ctl-empty', !list.length);
+    select.disabled = !list.length;
+    if (!list.length) {
+      control.setAttribute('data-note', state.uiLang === 'hi'
+        ? 'इस स्रोत में सबटाइटल नहीं हैं' : 'No subtitles in this source');
+    } else {
+      control.removeAttribute('data-note');
+    }
     const preferred = list.findIndex((track) => track.default);
     select.value = preferred >= 0 ? String(preferred) : 'off';
     applyNativeSubtitle(select.value);
@@ -2117,6 +2109,64 @@
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = (value !== 'off' && String(i) === String(value)) ? 'showing' : 'disabled';
     }
+  }
+
+  /* ============================================================
+     v12.10 — DEVICE-AWARE HLS TUNING
+     A 90-second forward buffer at 4K is ~180MB of video held in RAM.
+     On a 2-4GB Android phone that is what causes the stutter-then-reload
+     cycle people read as "the site is slow". Budget is scaled to the
+     hardware and the network instead of being one fixed number, and on
+     small screens the level is capped to the surface actually being
+     drawn - decoding 2160p into a 390px-wide box costs battery and
+     frames for pixels nobody can see.
+     ============================================================ */
+  function deviceTier() {
+    const mem = navigator.deviceMemory || 0;
+    const cores = navigator.hardwareConcurrency || 0;
+    const conn = navigator.connection || {};
+    if (conn.saveData) return 'low';
+    if (/^(slow-2g|2g|3g)$/.test(conn.effectiveType || '')) return 'low';
+    if ((mem && mem <= 3) || (cores && cores <= 4)) return 'low';
+    if ((mem && mem <= 6) || (cores && cores <= 6)) return 'mid';
+    return 'high';
+  }
+  function hlsTuning() {
+    const tier = deviceTier();
+    const small = window.matchMedia('(max-width:900px)').matches;
+    const base = {
+      startLevel: -1,
+      enableWorker: true,          // keep demuxing off the UI thread
+      lowLatencyMode: false,
+      fragLoadingMaxRetry: 4,
+      manifestLoadingMaxRetry: 3,
+      fragLoadingTimeOut: 20000,
+      manifestLoadingTimeOut: 15000,
+      // Trimming what has already been watched is the single biggest
+      // memory win on a phone and costs nothing but a re-fetch on seek-back.
+      backBufferLength: small ? 15 : 60,
+      // Never spend bandwidth on more pixels than the element can show.
+      capLevelToPlayerSize: small,
+    };
+    if (tier === 'low') {
+      return Object.assign(base, {
+        maxBufferLength: 12, maxMaxBufferLength: 30,
+        maxBufferSize: 24 * 1000 * 1000,
+        backBufferLength: 10,
+        capLevelToPlayerSize: true,
+        abrEwmaDefaultEstimate: 800000,
+      });
+    }
+    if (tier === 'mid') {
+      return Object.assign(base, {
+        maxBufferLength: 20, maxMaxBufferLength: 60,
+        maxBufferSize: 48 * 1000 * 1000,
+      });
+    }
+    return Object.assign(base, {
+      maxBufferLength: 30, maxMaxBufferLength: 90,
+      maxBufferSize: 96 * 1000 * 1000,
+    });
   }
 
   function wireSkipIntro() {
@@ -2278,6 +2328,11 @@
 
     p.directActive = true;
     p.directLang = String(chosen.language || '');
+    /* Track WHICH stream is playing by index. Several streams legitimately
+       share a blank language (an untagged original track), so matching on
+       language alone always resolved to the first one and the menu described
+       the wrong stream. */
+    p.directIndex = Math.max(0, p.directStreams.indexOf(chosen));
     syncDirectLanguageOptions();
     syncDirectToggle();
 
@@ -2321,14 +2376,7 @@
       const finish = (ok) => { window.clearTimeout(guard); done(ok); };
 
       if (Hls.isSupported()) {
-        nativeHls = new Hls({
-          maxBufferLength: 30,
-          maxMaxBufferLength: 90,
-          capLevelToPlayerSize: false,
-          startLevel: -1,
-          fragLoadingMaxRetry: 4,
-          manifestLoadingMaxRetry: 3,
-        });
+        nativeHls = new Hls(hlsTuning());
         nativeHls.on(Hls.Events.MANIFEST_PARSED, () => {
           syncNativeQualityOptions();
           syncNativeAudioTracks();
@@ -2394,6 +2442,21 @@
     const seen = new Set();
     const items = [];
     const untitled = streams.filter((s) => !String(s.language || '').trim()).length;
+
+    /* Two different things can supply an audio language, and the viewer should
+       not have to know or care which one a given title used:
+
+         1. a separate stream per language (one provider, one language), and
+         2. several audio tracks embedded inside ONE master playlist.
+
+       Case 2 was reaching a second dropdown still labelled "Anime audio",
+       which is both hidden by default for films and confusingly named — the
+       Spanish and English tracks on a title were effectively unreachable.
+       Both kinds are now listed together in the one "Audio" menu:
+       `dir:N` switches stream, `aud:N` switches track inside the current one. */
+    const embedded = (p.nativeAudio || []);
+    const currentStream = Number.isInteger(p.directIndex) && streams[p.directIndex] ? p.directIndex : 0;
+
     streams.forEach((s, index) => {
       const code = String(s.language || '').slice(0, 2).toLowerCase();
       if (code) {
@@ -2402,6 +2465,7 @@
         items.push({ value: `dir:${index}`, label: AUDIO_NAMES[code] || s.label || code.toUpperCase() });
         return;
       }
+
       /* The provider does not tag its original track, but TMDB knows what
          language the title was made in — and for a Hindi film that track IS
          the Hindi one. Naming it is the difference between the viewer seeing
@@ -2410,6 +2474,19 @@
       const base = orig && AUDIO_NAMES[orig]
         ? `${AUDIO_NAMES[orig]}${state.uiLang === 'hi' ? ' (मूल)' : ' (original)'}`
         : (state.uiLang === 'hi' ? 'मूल ऑडियो' : 'Original audio');
+
+      // If THIS stream is the one playing and it carries its own audio tracks,
+      // expand it in place so each track is directly pickable.
+      if (index === currentStream && embedded.length > 1) {
+        embedded.forEach((track) => {
+          const tcode = String(track.lang || '').slice(0, 2).toLowerCase();
+          if (tcode && seen.has(tcode)) return;
+          if (tcode) seen.add(tcode);
+          items.push({ value: `aud:${track.index}`, label: track.label || tcode.toUpperCase() || base });
+        });
+        return;
+      }
+
       const bits = [];
       if (untitled > 1 && s.height) bits.push(`${s.height}p`);
       if (untitled > 1 && s.provider) bits.push(String(s.provider).split(':').pop());
@@ -2418,12 +2495,26 @@
     if (!items.length) return;
 
     setSelectOptions(select, items);
-    const current = streams.findIndex((s) => String(s.language || '') === String(p.directLang || ''));
-    select.value = `dir:${current >= 0 ? current : 0}`;
+    // Reflect what is genuinely playing: an embedded track when one is
+    // selected, otherwise the stream itself.
+    let value = `dir:${currentStream}`;
+    if (embedded.length > 1 && nativeHls && Number.isInteger(nativeHls.audioTrack) && nativeHls.audioTrack >= 0) {
+      const match = items.find((it) => it.value === `aud:${nativeHls.audioTrack}`);
+      if (match) value = match.value;
+    }
+    if (!items.some((it) => it.value === value)) value = items[0].value;
+    select.value = value;
     select.disabled = false;
     select.title = state.uiLang === 'hi'
       ? 'ये वही भाषाएँ हैं जो इस टाइटल के लिए सचमुच मिलीं।'
       : 'These are the languages actually available for this title.';
+
+    /* One audio menu is enough. The embedded tracks are now listed above, so
+       the second dropdown would only offer the same choices under an
+       anime-specific label. */
+    if (p.media === 'movie' || p.media === 'tv') {
+      $('#pcAnimeAudioControl')?.classList.add('hidden');
+    }
     renderPlayerLanguageOptions();
   }
 
@@ -2451,6 +2542,7 @@
     if (!ok) { hidePlayerLoading(); return false; }
 
     p.directLang = String(stream.language || '');
+    p.directIndex = index;
     // Put the viewer back where they were rather than restarting the film.
     if (resumeAt > 5 && video) {
       const seek = () => { try { video.currentTime = resumeAt; } catch (e) {} };
@@ -3022,6 +3114,98 @@
   // The pinned control bar wraps to two or three lines depending on how many
   // controls a given source exposes and how wide the phone is. Measure it and
   // publish the height so the video stage can reserve exactly that much room.
+  /* ============================================================
+     v12.10 — SETTINGS SHEET
+     The five selects moved out of the always-on strip and into a
+     panel the user opens on purpose. Two things follow from that:
+       1. The strip's contents are now constant, so nothing can
+          re-flow under a finger mid-tap (the reported bug).
+       2. Rebuilds of the selects while the sheet is CLOSED are free -
+          they are not on screen, so they cannot move anything.
+     ============================================================ */
+  let pcSheetScrim = null;
+  function pcSheetIsModal() { return window.matchMedia('(max-width:900px)').matches; }
+  function pcSettingsOpen() {
+    const panel = $('#pcSettings');
+    return Boolean(panel && panel.classList.contains('open'));
+  }
+  function setPcSettings(open) {
+    const panel = $('#pcSettings');
+    const btn = $('#pcSettingsBtn');
+    if (!panel || !btn) return;
+    panel.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && pcSheetIsModal()) {
+      if (!pcSheetScrim) {
+        pcSheetScrim = document.createElement('div');
+        pcSheetScrim.className = 'pc-sheet-scrim';
+        pcSheetScrim.addEventListener('click', () => setPcSettings(false));
+      }
+      (document.fullscreenElement || document.body).appendChild(pcSheetScrim);
+    } else if (pcSheetScrim && pcSheetScrim.parentNode) {
+      pcSheetScrim.parentNode.removeChild(pcSheetScrim);
+    }
+    if (open) {
+      // Any option list that was deferred while the sheet was shut gets
+      // flushed now, before the user can see or touch it.
+      flushPendingSelects();
+      const first = panel.querySelector('select:not([disabled])');
+      if (first && !pcSheetIsModal()) { try { first.focus({ preventScroll: true }); } catch (_) {} }
+    }
+    syncControlBarHeight();
+  }
+  function flushPendingSelects() {
+    ['#pcLang', '#pcAnimeAudio', '#pcQuality', '#pcSubtitle', '#pcSpeed'].forEach((sel) => {
+      const el = $(sel);
+      if (el && el._svPending) {
+        const pending = el._svPending;
+        el._svPending = null;
+        setSelectOptions(el, pending, { force: true });
+      }
+    });
+  }
+  /* One-line digest on the strip, so the common "what am I watching in?"
+     question needs no taps. */
+  function syncBarSummary() {
+    const out = $('#pcBarSummary');
+    if (!out) return;
+    const pick = (sel) => {
+      const el = $(sel);
+      if (!el || el.disabled || !el.options.length) return '';
+      const o = el.options[el.selectedIndex];
+      return o ? String(o.textContent || '').trim() : '';
+    };
+    const bits = [];
+    const lang = pick('#pcLang') || pick('#pcAnimeAudio');
+    if (lang) bits.push(lang.split('·')[0].trim());
+    const q = pick('#pcQuality');
+    if (q) bits.push(q.split('·').pop().trim());
+    const sp = $('#pcSpeed');
+    if (sp && sp.value && sp.value !== '1') bits.push(`${sp.value}\u00d7`);
+    out.textContent = bits.filter(Boolean).slice(0, 3).join('  \u00b7  ');
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('#pcSettingsBtn');
+    if (btn) { e.preventDefault(); setPcSettings(!pcSettingsOpen()); return; }
+    if (e.target && e.target.closest && e.target.closest('#pcSettingsClose')) {
+      e.preventDefault(); setPcSettings(false);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pcSettingsOpen()) { e.stopPropagation(); setPcSettings(false); }
+  }, true);
+  // Choosing something on a phone closes the sheet; on desktop the panel is
+  // inline and staying open lets you tune several things in a row.
+  ['#pcLang', '#pcAnimeAudio', '#pcQuality', '#pcSubtitle', '#pcSpeed'].forEach((sel) => {
+    const el = $(sel);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      syncBarSummary();
+      if (pcSheetIsModal()) window.setTimeout(() => setPcSettings(false), 260);
+    });
+  });
+  window.addEventListener('resize', () => { if (pcSettingsOpen() && !pcSheetIsModal()) setPcSettings(false); }, { passive: true });
+
   let pcBarRaf = 0;
   function syncControlBarHeight() {
     if (pcBarRaf) cancelAnimationFrame(pcBarRaf);
@@ -3047,6 +3231,9 @@
   window.addEventListener('resize', syncControlBarHeight, { passive: true });
   window.addEventListener('orientationchange', syncControlBarHeight, { passive: true });
   document.addEventListener('fullscreenchange', syncControlBarHeight);
+
+  /* Never leave the sheet (or its scrim) behind when the player closes. */
+  function closePcSettings() { try { setPcSettings(false); } catch (_) {} }
 
   function resetPlayerFeed() {
     const feed = $('#playerFeed');
@@ -3448,6 +3635,7 @@
   $('#playerClose').onclick=closePlayer;
   function closePlayer() {
     const p = state.player;
+    closePcSettings();
     p.active = false;
     p.loadToken++;
     clearTimeout(p._loadTimer);
@@ -3517,6 +3705,22 @@
   $('#pcLang').onchange = (event) => {
     const raw = event.target.value;
     const selected = event.target.options[event.target.selectedIndex];
+
+    /* An embedded audio track inside the master that is already playing:
+       hls.js can switch it instantly, with no reload and no seek. */
+    if (String(raw).startsWith('aud:')) {
+      const track = (state.player.nativeAudio || []).find((x) => `aud:${x.index}` === raw);
+      if (track && track.lang) {
+        state.player.audioLang = track.lang;
+        localStorage.setItem('sv-audio-lang', track.lang);
+      }
+      applyNativeAudioTrack(raw);
+      const mirror = $('#pcAnimeAudio');
+      if (mirror && [...mirror.options].some((o) => o.value === raw)) mirror.value = raw;
+      renderPlayerLanguageOptions();
+      toast(t('audioPreference', { language: selected?.textContent || (track && track.label) || '' }));
+      return;
+    }
 
     /* Direct playback: the menu lists languages we have actually resolved, so
        switching swaps the audio stream in place instead of reloading the
@@ -3871,38 +4075,194 @@
   /* ================= LIVE TV ================= */
   function liveCategoryLabel(category) {
     if (state.uiLang !== 'hi') return category;
-    return ({ All:'सभी', News:'समाचार', Entertainment:'मनोरंजन', Movies:'फ़िल्में', Sports:'खेल', Kids:'बच्चे', Music:'संगीत', Education:'शिक्षा', Spiritual:'आध्यात्मिक' })[category] || category;
+    return ({
+      All:'सभी', News:'समाचार', Entertainment:'मनोरंजन', Movies:'फ़िल्में', Sports:'खेल',
+      Kids:'बच्चे', Music:'संगीत', Education:'शिक्षा', Spiritual:'आध्यात्मिक',
+      Documentary:'वृत्तचित्र', Culture:'संस्कृति', Lifestyle:'लाइफ़स्टाइल', Business:'व्यापार',
+    })[category] || category;
   }
+
+  /* ============================================================
+     v12.11 — LIVE TV
+     The catalogue is built from the iptv-org dataset at deploy time
+     (tools/build-channels.js) and queried through /api/channels, so the
+     browser fetches one page of results instead of megabytes of JSON.
+     ============================================================ */
+  const liveState = {
+    query: '', cat: 'All', country: '',
+    offset: 0, limit: 60, total: 0, loading: false,
+    seq: 0, catsRendered: false, countriesRendered: false,
+  };
 
   function showLiveTV() {
     hideAllViews(); $('#liveView').classList.remove('hidden'); window.scrollTo({top:0}); closeMobileMenu();
-    renderLiveChannels();
+    wireLiveSearch();
+    if (!$('#liveGrid').children.length) loadLiveChannels(true);
   }
-  function renderLiveChannels(filter='All') {
-    const chips = $('#liveChips');
-    if (!chips.children.length) {
-      const cats = ['All', ...Array.from(new Set(LIVE_CHANNELS.map(c=>c.cat)))];
-      cats.forEach((cat) => {
-        const b = document.createElement('button'); b.className='cat-chip'+(cat==='All'?' active':''); b.textContent=liveCategoryLabel(cat);
-        b.onclick = () => { $$('#liveChips .cat-chip').forEach(x=>x.classList.remove('active')); b.classList.add('active'); renderLiveChannels(cat); };
-        chips.appendChild(b);
-      });
+
+  function channelInitials(name) {
+    return String(name || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').trim()
+      .split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+  }
+
+  function bestQualityLabel(ch) {
+    let best = 0, label = '';
+    for (const st of ch.streams || []) {
+      const m = String(st.quality || '').match(/(\d+)/);
+      const n = m ? parseInt(m[1], 10) : 0;
+      if (n > best) { best = n; label = st.quality; }
     }
-    const grid = $('#liveGrid'); grid.innerHTML='';
-    const list = filter==='All' ? LIVE_CHANNELS : LIVE_CHANNELS.filter(c=>c.cat===filter);
-    list.forEach((ch) => {
-      const card = document.createElement('div'); card.className='live-card';
-      card.tabIndex=0;
-      card.innerHTML = `
-        <div class="lc-logo">${ch.logo}</div>
-        <div class="lc-meta">
-          <div class="lc-name">${esc(ch.name)}</div>
-          <div class="lc-cat">${esc(liveCategoryLabel(ch.cat))} <span class="lc-live"><span class="live-dot sm"></span> ${state.uiLang==='hi'?'लाइव':'LIVE'}</span></div>
-        </div>`;
-      card.onclick = () => openLivePlayer(ch);
-      card.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){e.preventDefault(); openLivePlayer(ch);} };
-      grid.appendChild(card);
+    return label;
+  }
+
+  function liveCardMarkup(ch) {
+    const q = bestQualityLabel(ch);
+    const initials = channelInitials(ch.name);
+    // The logo is decorative: if it 404s or the host is down we swap in
+    // initials rather than leaving a broken-image box on the card.
+    /* referrerpolicy=no-referrer is load-bearing: imgur (58 logos in the
+       catalogue) answers 403 to hotlinked requests that carry a Referer but
+       200 to the same request without one. The initials sit underneath and
+       are revealed by hiding a failed <img>, rather than removing the node
+       first and then dereferencing its parent. */
+    const logo = ch.logo
+      ? `<span class="lc-initials">${esc(initials)}</span>` +
+        `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(ch.logo)}" alt=""
+              onerror="this.style.display='none'">`
+      : `<span class="lc-initials">${esc(initials)}</span>`;
+    return `
+      <div class="lc-logo">${logo}</div>
+      <div class="lc-meta">
+        <div class="lc-name">${esc(ch.name)}</div>
+        <div class="lc-cat">
+          ${esc(liveCategoryLabel(ch.cat))}
+          ${q ? `<span class="lc-quality">${esc(q)}</span>` : ''}
+          ${ch.country ? `<span class="lc-country">${esc(ch.country)}</span>` : ''}
+          <span class="lc-live"><span class="live-dot sm"></span> ${state.uiLang==='hi'?'लाइव':'LIVE'}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderLiveChips(categories) {
+    if (liveState.catsRendered) return;
+    const chips = $('#liveChips');
+    chips.innerHTML = '';
+    const entries = Object.entries(categories || {}).sort((a, b) => b[1] - a[1]);
+    const cats = [['All', null]].concat(entries);
+    for (const [cat, n] of cats) {
+      const b = document.createElement('button');
+      b.className = 'cat-chip' + (cat === liveState.cat ? ' active' : '');
+      b.textContent = liveCategoryLabel(cat) + (n ? ` (${n})` : '');
+      b.onclick = () => {
+        $$('#liveChips .cat-chip').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        liveState.cat = cat;
+        loadLiveChannels(true);
+      };
+      chips.appendChild(b);
+    }
+    liveState.catsRendered = true;
+  }
+
+  function renderLiveCountries(countries) {
+    if (liveState.countriesRendered) return;
+    const sel = $('#liveCountry');
+    if (!sel) return;
+    const names = (() => {
+      try { return new Intl.DisplayNames([state.uiLang === 'hi' ? 'hi' : 'en'], { type: 'region' }); }
+      catch (_) { return null; }
+    })();
+    const entries = Object.entries(countries || {}).sort((a, b) => b[1] - a[1]);
+    const items = [{ value: '', label: state.uiLang==='hi' ? 'सभी देश' : 'All countries' }];
+    for (const [code, n] of entries) {
+      let label = code;
+      try { if (names) label = names.of(code) || code; } catch (_) {}
+      items.push({ value: code, label: `${label} (${n})` });
+    }
+    setSelectOptions(sel, items);
+    sel.onchange = () => { liveState.country = sel.value; loadLiveChannels(true); };
+    liveState.countriesRendered = true;
+  }
+
+  async function loadLiveChannels(reset) {
+    if (liveState.loading) return;
+    liveState.loading = true;
+    const seq = ++liveState.seq;
+    if (reset) liveState.offset = 0;
+
+    const grid = $('#liveGrid');
+    if (reset) grid.innerHTML = '<div class="live-count">' + esc(t('loading') || 'Loading…') + '</div>';
+
+    const params = new URLSearchParams({
+      q: liveState.query, cat: liveState.cat,
+      country: liveState.country,
+      limit: String(liveState.limit), offset: String(liveState.offset),
     });
+    let data = null;
+    try {
+      const res = await fetch('/api/channels?' + params.toString());
+      data = await res.json();
+    } catch (e) { data = null; }
+    if (seq !== liveState.seq) { liveState.loading = false; return; }
+
+    if (!data || !data.ok) {
+      grid.innerHTML = '';
+      $('#liveCount').textContent = t('streamUnavailable') || 'Channel list unavailable.';
+      liveState.loading = false;
+      return;
+    }
+
+    renderLiveChips(data.categories);
+    renderLiveCountries(data.countries);
+    liveState.total = data.total;
+
+    if (reset) grid.innerHTML = '';
+    for (const ch of data.channels) {
+      const card = document.createElement('div');
+      card.className = 'live-card';
+      card.tabIndex = 0;
+      card.innerHTML = liveCardMarkup(ch);
+      card.onclick = () => openLivePlayer(ch);
+      card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLivePlayer(ch); } };
+      grid.appendChild(card);
+    }
+    liveState.offset += data.channels.length;
+
+    const shown = grid.children.length;
+    $('#liveEmpty').classList.toggle('hidden', shown > 0);
+    $('#liveMore').classList.toggle('hidden', shown >= data.total);
+    $('#liveCount').textContent = data.total
+      ? (state.uiLang === 'hi'
+          ? `${shown} / ${data.total} चैनल`
+          : `Showing ${shown} of ${data.total} channels`)
+      : '';
+    liveState.loading = false;
+  }
+
+  function wireLiveSearch() {
+    const input = $('#liveSearch');
+    const clear = $('#liveSearchClear');
+    if (!input || input._svWired) return;
+    input._svWired = true;
+    let timer = null;
+    input.addEventListener('input', () => {
+      clear.classList.toggle('hidden', !input.value);
+      window.clearTimeout(timer);
+      // Debounced: typing "star plus" should cost one query, not nine.
+      timer = window.setTimeout(() => {
+        liveState.query = input.value.trim();
+        loadLiveChannels(true);
+      }, 260);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { input.value = ''; clear.classList.add('hidden'); liveState.query = ''; loadLiveChannels(true); }
+    });
+    clear.onclick = () => {
+      input.value = ''; clear.classList.add('hidden');
+      liveState.query = ''; input.focus(); loadLiveChannels(true);
+    };
+    const more = $('#liveMore');
+    if (more) more.onclick = () => loadLiveChannels(false);
   }
 
   let hlsLoaderPromise = null;
@@ -3937,10 +4297,37 @@
     return hlsLoaderPromise;
   }
 
-  async function openLivePlayer(channel) {
+  /* A catalogue channel carries several stream variants. variantIndex picks
+     one; the Source select lets a viewer escape a variant that is up but
+     stuttering, which is the common real-world failure for public streams. */
+  function channelStreams(channel) {
+    if (Array.isArray(channel.streams) && channel.streams.length) return channel.streams;
+    return channel.url ? [{ url: channel.url, quality: null, label: null }] : [];
+  }
+
+  function renderLiveSourceSelect(channel, index) {
+    const ctl = $('#liveSourceCtl'); const sel = $('#liveSource');
+    if (!ctl || !sel) return;
+    const variants = channelStreams(channel);
+    if (variants.length < 2) { ctl.classList.add('hidden'); return; }
+    ctl.classList.remove('hidden');
+    setSelectOptions(sel, variants.map((v, i) => ({
+      value: String(i),
+      label: v.quality || v.label || ((state.uiLang==='hi' ? 'स्रोत ' : 'Source ') + (i + 1)),
+    })));
+    if (!selectIsBusy(sel)) sel.value = String(index);
+    sel.onchange = () => openLivePlayer(channel, parseInt(sel.value, 10) || 0);
+  }
+
+  async function openLivePlayer(channel, variantIndex = 0) {
+    const variants = channelStreams(channel);
+    if (!variants.length) return;
+    const idx = Math.min(Math.max(variantIndex, 0), variants.length - 1);
+    const streamUrl = variants[idx].url;
     $('#livePlayerModal').classList.remove('hidden');
     document.body.style.overflow='hidden';
     $('#liveTitle').innerHTML = `<span class="live-dot"></span> ${esc(channel.name)} <span style="opacity:.6;font-weight:500">— ${esc(channel.cat)}</span>`;
+    renderLiveSourceSelect(channel, idx);
     const video = $('#liveVideo');
     const loading = $('#liveLoading'); loading.classList.remove('hidden');
     $('#liveMeta').textContent = t('connecting');
@@ -3948,11 +4335,20 @@
     state.live.currentChannel = channel;
     $('#liveVoiceVolume').value=String(state.live.boostLevel||1.3);
     setLiveAudioEnhancement(state.live.enhanced,true);
-    const proxyUrl = '/api/hls?url=' + encodeURIComponent(channel.url);
+    const proxyUrl = '/api/hls?url=' + encodeURIComponent(streamUrl);
 
-    // Safari plays HLS natively; use the rewritten same-origin manifest so
-    // HTTP channels and relative segments work on an HTTPS Render deployment.
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    /* v12.11 ROOT CAUSE OF "LIVE TV DOESN'T PLAY":
+       Chrome returns "maybe" from canPlayType('application/vnd.apple.mpegurl')
+       - a truthy string - but cannot actually play HLS natively, so every
+       channel died with MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) before hls.js was
+       ever given a chance. Native HLS is now only used when MSE/hls.js is
+       genuinely unavailable, which is the real Safari/iOS case. */
+    let HlsClass = null;
+    try { HlsClass = await ensureHls(); } catch (e) { HlsClass = null; }
+    if (state.live.currentChannel !== channel) return;
+    const canUseHlsJs = Boolean(HlsClass && HlsClass.isSupported());
+
+    if (!canUseHlsJs && video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = proxyUrl;
       video.addEventListener('loadedmetadata', () => {
         if (state.live.currentChannel !== channel) return;
@@ -3966,28 +4362,16 @@
       return;
     }
 
-    let HlsClass;
-    try { HlsClass = await ensureHls(); }
-    catch (e) {
-      if (state.live.currentChannel !== channel) return;
-      loading.classList.add('hidden'); $('#liveMeta').textContent = t('hlsUnsupported'); return;
-    }
-    if (state.live.currentChannel !== channel) return;
-    if (!HlsClass || !HlsClass.isSupported()) {
+    if (!canUseHlsJs) {
       loading.classList.add('hidden'); $('#liveMeta').textContent = t('hlsUnsupported'); return;
     }
 
-    const hls = new HlsClass({
-      lowLatencyMode: false,
-      backBufferLength: 15,
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
+    // Live TV shares the same device-aware budget as the movie player, but
+    // keeps a shorter back buffer: nobody rewinds a live channel.
+    const hls = new HlsClass(Object.assign(hlsTuning(), {
+      backBufferLength: 10,
       capLevelToPlayerSize: true,
-      startLevel: -1,
-      enableWorker: true,
-      manifestLoadingTimeOut: 15000,
-      fragLoadingTimeOut: 20000,
-    });
+    }));
     state.live.hls = hls;
     let mediaRecoveryTried = false;
     let networkRecoveryTried = false;
@@ -4085,9 +4469,27 @@
     if ($('#detailModal').classList.contains('hidden')&&$('#playerModal').classList.contains('hidden')) document.body.style.overflow='';
   };
   $('#liveFs').onclick = () => {
+    /* Fullscreen the player shell, not the bare <video>. Going fullscreen on
+       the element itself handed the screen to the browser's native chrome and
+       took our channel/quality/mute controls off screen entirely. The movie
+       player has always targeted its shell; Live TV now matches. */
+    const shell = document.querySelector('#livePlayerModal .player') || $('#liveVideo');
     const video = $('#liveVideo');
-    if (!document.fullscreenElement) { const request=video.requestFullscreen||video.webkitRequestFullscreen||video.mozRequestFullScreen; if(request) request.call(video); }
-    else { const exit=document.exitFullscreen||document.webkitExitFullscreen; if(exit) exit.call(document); }
+    if (!document.fullscreenElement) {
+      const request = shell.requestFullscreen || shell.webkitRequestFullscreen || shell.mozRequestFullScreen;
+      if (request) {
+        Promise.resolve(request.call(shell)).catch(() => {
+          // iOS Safari refuses fullscreen on anything but the video element.
+          const vf = video.webkitEnterFullscreen || video.requestFullscreen;
+          if (vf) try { vf.call(video); } catch (_) {}
+        });
+      } else if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      }
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+    }
   };
   $('#liveSpeed').onchange = (e) => { $('#liveVideo').playbackRate = parseFloat(e.target.value); toast(`${t('speed')} ${e.target.value}×`); };
   $('#liveMute').onclick = () => {

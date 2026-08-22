@@ -672,9 +672,24 @@ body.touch .player-nextsrc{opacity:1}
 .live-card:hover,.live-card:focus-visible{transform:translateY(-3px);background:var(--card-hover);border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .live-card:focus-visible{box-shadow:0 0 0 3px rgba(229,9,20,.45)}
 .lc-logo{
-  width:52px;height:52px;border-radius:12px;flex-shrink:0;
+  width:52px;height:52px;border-radius:12px;flex-shrink:0;position:relative;
   background:linear-gradient(135deg,rgba(229,9,20,.18),rgba(124,58,237,.18));
   display:grid;place-items:center;font-size:24px;border:1px solid var(--border);
+  overflow:hidden;
+}
+/* Real broadcaster logos are a mix of dark-on-transparent and light-on-white.
+   A white plate keeps both legible instead of losing the dark ones against
+   the dark card. contain, never cover: these are wordmarks, not photos. */
+/* The <img> is layered over the initials, so a logo that fails to load
+   simply reveals the fallback already sitting behind it. */
+.lc-logo img{
+  position:absolute;inset:0;
+  width:100%;height:100%;object-fit:contain;padding:5px;
+  background:#fff;border-radius:11px;display:block;
+}
+.lc-logo .lc-initials{
+  font-size:17px;font-weight:800;letter-spacing:.5px;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.5);
 }
 .lc-meta{flex:1;min-width:0}
 .lc-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1030,10 +1045,9 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
   }
   .player-overlay:not(.hidden) .lc-ctl{flex:1 1 132px;min-width:0}
   .player-overlay:not(.hidden) .lc-ctl select{width:100%}
-  /* Secondary buttons would wrap the row onto three lines on a phone. */
-  .player-overlay:not(.hidden) .pc-lang-row #pcVoiceBoost,
-  .player-overlay:not(.hidden) .pc-lang-row #pcReload,
-  .player-overlay:not(.hidden) .pc-lang-row #audioTrackStatus{display:none}
+  /* v12.10: these live in the fixed-height strip now and no longer wrap,
+     so they stay visible (Reload becomes icon-only). Kept as a no-op
+     anchor rather than deleted, to document why the old rule went away. */
 }
 
 .anime-video-chip{min-width:74px}
@@ -1378,10 +1392,18 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
   color:#c7d2fe;border-color:rgba(99,102,241,.6);background:rgba(99,102,241,.18);
   box-shadow:0 0 0 1px rgba(99,102,241,.14) inset;
 }
-#pcDirectToggle.active::before{
+/* v12.10: the dot is ALWAYS in the layout, only its paint changes.
+   Adding it on .active grew the button by 20px and shoved the Reload
+   button sideways the instant direct playback engaged - measured at t=2s,
+   squarely inside the window where a user is reaching for it. */
+#pcDirectToggle::before{
   content:"";width:6px;height:6px;border-radius:50%;
+  display:inline-block;margin-right:6px;vertical-align:middle;flex:0 0 6px;
+  background:transparent;box-shadow:none;
+  transition:background .2s ease,box-shadow .2s ease;
+}
+#pcDirectToggle.active::before{
   background:#818cf8;box-shadow:0 0 6px rgba(129,140,248,.9);
-  display:inline-block;margin-right:6px;vertical-align:middle;
 }
 
 /* ============================================================
@@ -1490,3 +1512,237 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
    just looking broken. */
 .lc-ctl[data-note]:not(.ctl-unsupported)::after{content:attr(data-note);display:block;margin-top:3px;font-size:9px;line-height:1.25;color:var(--muted);max-width:190px;white-space:normal}
 .lc-ctl select:disabled{opacity:.55;cursor:not-allowed}
+
+/* ================================================================
+   v12.10 — STABLE CONTROL BAR + SETTINGS SHEET
+   ----------------------------------------------------------------
+   Root cause of "the option moves away as I tap it": every select
+   lived in one wrapping flex row. Controls appear asynchronously
+   (subtitles at ~3s, audio tracks at ~4s) and each arrival re-wrapped
+   the row - measured shifts of 39px vertical and up to 288px
+   horizontal, right in the window where a user is reaching for a
+   control. The bar is now a fixed-height strip whose children never
+   change, and the selects live in a panel that is opened
+   deliberately. Nothing can reflow under a finger any more.
+   ================================================================ */
+
+:root{ --tap:44px; }
+
+/* ---- the always-visible strip ---- */
+.player-overlay:not(.hidden) .pc-bar{
+  display:flex;align-items:center;gap:8px;
+  max-width:1220px;margin:0 auto;width:100%;
+  min-height:52px;
+}
+.pc-bar-spacer{flex:1 1 auto;min-width:0}
+.pc-bar-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:var(--tap);padding:0 16px;border-radius:12px;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);
+  color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;
+  transition:background .18s,border-color .18s,transform .12s;
+  flex:0 0 auto;
+}
+.pc-bar-btn:hover{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.34)}
+.pc-bar-btn:active{transform:scale(.97)}
+.pc-bar-settings[aria-expanded="true"]{
+  background:rgba(99,102,241,.22);border-color:rgba(99,102,241,.6);color:#c7d2fe;
+}
+/* A live one-line digest of the current picks, so the common case
+   (just checking what is playing) needs no taps at all. */
+.pc-bar-summary{
+  font-size:12px;font-weight:700;color:rgba(255,255,255,.66);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-width:0;flex:0 1 auto;
+}
+
+/* ---- the settings panel ---- */
+/* Desktop: the panel FLOATS above the strip instead of growing it.
+   Growing it pushed --pc-bar-h from 79px to 201px, which resized the
+   video mid-playback every time the panel was opened. */
+.pc-settings{
+  position:absolute;left:0;right:0;bottom:calc(100% + 8px);
+  max-width:1220px;margin:0 auto;width:100%;
+  background:rgba(12,12,20,.96);border:1px solid rgba(255,255,255,.16);
+  border-radius:16px;padding:14px 16px;
+  box-shadow:0 -14px 44px rgba(0,0,0,.6);
+  display:none;
+}
+.player-overlay:not(.hidden) .pc-lang-row{position:fixed}
+.pc-settings.open{display:block;animation:pcSheetIn .2s var(--ease)}
+@keyframes pcSheetIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pc-settings-head{
+  display:none;align-items:center;justify-content:space-between;
+  font-size:13px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
+  color:rgba(255,255,255,.72);margin-bottom:12px;
+}
+.pc-settings-close{
+  appearance:none;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);
+  color:#fff;width:var(--tap);height:var(--tap);border-radius:50%;
+  font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;
+}
+.pc-settings-close:hover{background:rgba(229,9,20,.8);border-color:transparent}
+
+/* ---- GRID, not wrap. Fixed tracks => zero reflow when a control
+       appears or its label text grows. ---- */
+.player-overlay:not(.hidden) .pc-settings .pc-lang-controls{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px;align-items:start;max-width:none;margin:0;
+}
+.player-overlay:not(.hidden) .pc-settings .lc-ctl{
+  display:flex;flex-direction:column;align-items:stretch;gap:6px;
+  min-width:0;flex:none;
+}
+.player-overlay:not(.hidden) .pc-settings .lc-ctl>span{
+  font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:rgba(255,255,255,.6);
+}
+/* Width is locked so a long label ("Original audio - 2160p cdn")
+   can never widen a cell and shove its neighbours sideways. */
+.player-overlay:not(.hidden) .pc-settings .pc-select{
+  width:100%;min-width:0;max-width:100%;
+  min-height:var(--tap);padding:10px 12px;font-size:14.5px;
+  border-radius:11px;
+  text-overflow:ellipsis;
+}
+/* A control with nothing to offer stays in place, dimmed, and says why -
+   it never disappears, because disappearing is what moved the layout. */
+.player-overlay:not(.hidden) .pc-settings .lc-ctl.ctl-empty{opacity:.45}
+.player-overlay:not(.hidden) .pc-settings .lc-ctl.ctl-empty .pc-select{cursor:not-allowed}
+
+/* ================= phones & tablets: real bottom sheet ============= */
+@media(max-width:900px){
+  .player-overlay:not(.hidden) .pc-bar{min-height:var(--tap);gap:6px}
+  .pc-bar-summary{display:none}
+  /* Icon-only secondary buttons: keeps the strip to a single row on a
+     360px phone while staying at the 44px minimum tap size. */
+  .pc-bar-reload .pc-bar-txt{display:none}
+  .pc-bar-reload{min-width:var(--tap);min-height:var(--tap);padding:0 12px;justify-content:center}
+  .player-overlay:not(.hidden) .pc-bar #pcVoiceBoost,
+  .player-overlay:not(.hidden) .pc-bar #pcDirectToggle{
+    min-height:var(--tap);padding:0 13px;font-size:12.5px;
+  }
+  .player-overlay:not(.hidden) .pc-bar .audio-track-status{display:none}
+
+  .pc-settings{
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:120;
+    margin:0;border-radius:20px 20px 0 0;
+    border-left:0;border-right:0;border-bottom:0;
+    background:rgba(10,10,17,.985);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    padding:14px 16px calc(18px + env(safe-area-inset-bottom));
+    max-height:min(68dvh,560px);overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    box-shadow:0 -20px 60px rgba(0,0,0,.7);
+  }
+  .pc-settings.open{animation:pcSheetUp .24s var(--ease)}
+  @keyframes pcSheetUp{from{transform:translateY(100%)}to{transform:none}}
+  .pc-settings-head{display:flex}
+  /* One control per line on a phone: easiest to hit, and the order
+     never changes regardless of which controls are live. */
+  .player-overlay:not(.hidden) .pc-settings .pc-lang-controls{
+    grid-template-columns:1fr;gap:14px;
+  }
+  .player-overlay:not(.hidden) .pc-settings .pc-select{
+    min-height:48px;font-size:16px; /* >=16px stops iOS zoom-on-focus */
+  }
+}
+
+/* Scrim behind the sheet - tap anywhere to dismiss. */
+.pc-sheet-scrim{
+  position:fixed;inset:0;z-index:119;background:rgba(0,0,0,.5);
+  backdrop-filter:blur(2px);animation:fadeIn .18s ease;
+}
+@media(min-width:901px){ .pc-sheet-scrim{display:none} }
+
+/* ================= universal 44px tap targets ===================== */
+/* Measured before: selects 36px, buttons 33px, rec toggles 25px.
+   Everything a finger is meant to hit now clears 44px. */
+@media(max-width:900px){
+  .player-controls .btn.sm,
+  .player-controls .rec-toggle-btn,
+  .player-controls .ep-chip,
+  .player-controls .source-chip,
+  .player-controls .pc-select,
+  #pcSeason,#pcPrev,#pcNext,#pcDownload,
+  #pcRecCollapse,#pcRecHide,#pcRecShow{
+    min-height:var(--tap);
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .player-controls .ep-chip{min-width:var(--tap)}
+  .ep-chips{max-height:none;gap:9px}
+  .unmute-btn{min-height:var(--tap);padding:0 18px}
+  .inline-rec-close{width:38px;height:38px;font-size:16px}
+  /* Space between adjacent targets, so a slightly-off tap misses into
+     nothing rather than into the wrong button. */
+  .pc-actions{gap:10px;flex-wrap:wrap}
+  .rec-head-actions{gap:10px}
+}
+
+/* ================= smoothness ===================================== */
+/* Momentum scrolling everywhere a finger can drag. */
+.rec-row,.ep-chips,.source-chips{-webkit-overflow-scrolling:touch}
+.rec-row{scroll-snap-type:x proximity;scroll-padding-left:4px}
+.rec-card{scroll-snap-align:start}
+/* Promote the elements that actually animate; leaving everything on the
+   compositor costs memory on cheap phones, so this list stays short. */
+.player-overlay:not(.hidden) .pc-lang-row,
+.pc-settings{will-change:transform}
+/* Respect the OS reduce-motion switch. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important;
+  }
+}
+/* Kill the 300ms tap delay and the grey flash on Android. */
+@media(max-width:900px){
+  a,button,select,.card,.ep-chip,.source-chip,.rec-card{
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  }
+}
+
+
+/* ============================================================
+   v12.11 — LIVE TV: search, country filter, bigger catalogue
+   ============================================================ */
+.live-toolbar{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}
+.live-search{
+  position:relative;display:flex;align-items:center;gap:9px;flex:1 1 280px;min-width:0;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0 12px;
+  transition:border-color .18s,box-shadow .18s;
+}
+.live-search:focus-within{border-color:var(--border-strong);box-shadow:0 0 0 3px rgba(229,9,20,.22)}
+.live-search svg{color:var(--muted);flex-shrink:0}
+.live-search input{
+  flex:1;min-width:0;background:none;border:0;outline:none;color:var(--text);
+  font:inherit;font-size:14px;padding:12px 0;
+}
+.live-search input::-webkit-search-cancel-button{display:none}
+.live-search-clear{
+  background:none;border:0;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;
+  padding:0 2px;min-width:30px;min-height:30px;border-radius:8px;
+}
+.live-search-clear:hover{color:var(--text)}
+.live-search-clear.hidden{display:none}
+.live-country{flex:0 0 auto;min-width:160px}
+.live-count{font-size:12.5px;color:var(--muted);margin-top:14px}
+.live-empty{text-align:center;padding:44px 16px;color:var(--muted)}
+.live-empty.hidden{display:none}
+.live-more{display:block;margin:22px auto 8px;min-height:44px;padding:0 26px}
+.live-more.hidden{display:none}
+.lc-quality{
+  font-size:10px;font-weight:800;letter-spacing:.3px;color:#a7f3d0;
+  background:rgba(16,185,129,.16);border:1px solid rgba(16,185,129,.3);
+  border-radius:5px;padding:1px 5px;
+}
+.lc-country{
+  font-size:10px;font-weight:700;color:var(--muted);
+  background:rgba(255,255,255,.07);border-radius:5px;padding:1px 5px;letter-spacing:.3px;
+}
+@media (max-width:760px){
+  .live-toolbar{gap:10px}
+  .live-country{flex:1 1 100%;min-width:0}
+  .live-search input{padding:13px 0}
+}
