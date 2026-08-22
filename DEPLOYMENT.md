@@ -39,7 +39,7 @@ Manual settings:
 Health response:
 
 ```json
-{"ok":true,"version":"12.11.0","tmdb_configured":true}
+{"ok":true,"version":"12.12.0","tmdb_configured":true}
 ```
 
 Agar `tmdb_configured` `false` aaye to key set nahi hui — movie/TV rows khaali rahenge, anime phir bhi chalega.
@@ -58,6 +58,22 @@ Agar `tmdb_configured` `false` aaye to key set nahi hui — movie/TV rows khaali
 10. Player me recommendations ko Collapse / Hide karein, phir "Show recommendations" se wapas laayein. Reload ke baad preference yaad rahe.
 11. Search `comedy`, `Hindi comedy`, `anime comedy`, `latest action movies` test karein.
 12. Live TV me channels aur Voice Volume 100–150% control dikhe.
+13. **Live TV region:** page khulte hi apne aap India select ho (browser locale/timezone se). Country badlo to language list bhi us desh ki ho jaye.
+14. **Live TV language:** India + Hindi chunne par ~190 channel dikhe; har card par language badge ho.
+15. **Quality dropdown:** live player me quality picker khol kar 10 second rukho — apne aap band nahi hona chahiye, aur manual pick ABR se wapas Auto nahi hona chahiye.
+
+## Live TV catalogue
+
+Catalogue `channels.json.gz` me ship hoti hai (server boot par gunzip karta hai) —
+4 MB raw, ~600 KB on disk. Refresh karne ke liye:
+
+```bash
+node tools/build-channels.js --probe      # ~15 min, har stream ko alive-check karta hai
+```
+
+Sources: iptv-org + Samsung TV Plus + Pluto TV. Sirf alive streams likhi jaati hain
+(pichla run: 10,593 / 12,271 alive). Ye file live-TV proxy ki allowlist bhi hai —
+isme jo host nahi, wo `/api/hls` se nahi chalega.
 13. PWA install prompt aaye (`manifest.webmanifest` ab exist karta hai — v11 me missing tha).
 
 ## Audio samajhna zaroori hai

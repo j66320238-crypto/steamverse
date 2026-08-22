@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.11.0';
+  const APP_VERSION = '12.12.0';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -91,6 +91,7 @@
       noTitles: 'No titles found. Try something else.', newPlaylist: 'New Playlist', backPlaylists: '‹ Back to playlists',
       rename: 'Rename', liveSub: '24/7 public channels — availability can change by region.', watchingNow: 'watching now',
       liveSearchPh: 'Search channels — Aaj Tak, Star, Sony…', liveNoMatch: 'No channels match that search.',
+      liveAllLangs: 'All languages', liveLangLabel: 'Language',
       loadMore: 'Load more', source: 'Source', loading: 'Loading…',
       nowPlaying: 'Now Playing', audio: 'Audio', preferredAudio: 'Preferred audio', audioPreferenceSetting: 'Preferred Audio', audioPreferenceSettingNote: 'Requests this audio from compatible players; unavailable dubs cannot be created by the site.',
       audioNote: 'Audio tracks depend on the selected provider. Use the provider player menu if your preference is unavailable.',
@@ -163,6 +164,7 @@
       noTitles: 'कोई शीर्षक नहीं मिला। कुछ और खोजें।', newPlaylist: 'नई प्लेलिस्ट', backPlaylists: '‹ प्लेलिस्ट पर वापस',
       rename: 'नाम बदलें', liveSub: '24/7 सार्वजनिक चैनल — उपलब्धता क्षेत्र के अनुसार बदल सकती है।', watchingNow: 'अभी देख रहे हैं',
       liveSearchPh: 'चैनल खोजें — आज तक, स्टार, सोनी…', liveNoMatch: 'इस खोज से कोई चैनल नहीं मिला।',
+      liveAllLangs: 'सभी भाषाएँ', liveLangLabel: 'भाषा',
       loadMore: 'और दिखाएँ', source: 'स्रोत', loading: 'लोड हो रहा है…',
       nowPlaying: 'अभी चल रहा है', audio: 'ऑडियो', preferredAudio: 'पसंदीदा ऑडियो', audioPreferenceSetting: 'पसंदीदा ऑडियो', audioPreferenceSettingNote: 'संगत प्लेयर से यह ऑडियो माँगा जाएगा; जो डब मौजूद नहीं है उसे साइट बना नहीं सकती।',
       audioNote: 'ऑडियो ट्रैक चुने गए प्रदाता पर निर्भर हैं। भाषा न मिले तो वीडियो प्लेयर के मेनू में चुनें।',
@@ -4089,15 +4091,41 @@
      browser fetches one page of results instead of megabytes of JSON.
      ============================================================ */
   const liveState = {
-    query: '', cat: 'All', country: '',
+    query: '', cat: 'All', country: '', lang: '',
     offset: 0, limit: 60, total: 0, loading: false,
-    seq: 0, catsRendered: false, countriesRendered: false,
+    seq: 0, catsRendered: false, countriesRendered: false, langsRendered: false, langsSig: '',
+    defaultApplied: false,
   };
+
+  // Default the region to where the user actually is. sv-country is set by the
+  // existing region picker; otherwise fall back to the browser locale, so a
+  // phone in Patna opens on Indian channels instead of Alabama's.
+  function defaultLiveCountry() {
+    const saved = localStorage.getItem('sv-live-country');
+    if (saved !== null) return saved;             // '' is a real choice: All
+    const region = localStorage.getItem('sv-country') || localStorage.getItem('sv-region');
+    if (region && /^[A-Za-z]{2}$/.test(region)) return region.toUpperCase();
+    try {
+      const locales = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+      for (const loc of locales) {
+        const m = /[-_]([A-Za-z]{2})$/.exec(loc || '');
+        if (m) return m[1].toUpperCase();
+      }
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      if (/Kolkata|Calcutta/i.test(tz)) return 'IN';
+    } catch (_) {}
+    return '';
+  }
 
   function showLiveTV() {
     hideAllViews(); $('#liveView').classList.remove('hidden'); window.scrollTo({top:0}); closeMobileMenu();
+    if (!liveState.defaultApplied) {
+      liveState.country = defaultLiveCountry();
+      liveState.lang = localStorage.getItem('sv-live-lang') || '';
+    }
     wireLiveSearch();
     if (!$('#liveGrid').children.length) loadLiveChannels(true);
+    liveState.defaultApplied = true;
   }
 
   function channelInitials(name) {
@@ -4138,6 +4166,7 @@
           ${esc(liveCategoryLabel(ch.cat))}
           ${q ? `<span class="lc-quality">${esc(q)}</span>` : ''}
           ${ch.country ? `<span class="lc-country">${esc(ch.country)}</span>` : ''}
+          ${(ch.langs && ch.langs[0] && ch.langs[0].name) ? `<span class="lc-lang">${esc(ch.langs[0].name)}</span>` : ''}
           <span class="lc-live"><span class="live-dot sm"></span> ${state.uiLang==='hi'?'लाइव':'LIVE'}</span>
         </div>
       </div>`;
@@ -4180,8 +4209,53 @@
       items.push({ value: code, label: `${label} (${n})` });
     }
     setSelectOptions(sel, items);
-    sel.onchange = () => { liveState.country = sel.value; loadLiveChannels(true); };
+    // Mirror state onto the control every render: the options only exist now,
+    // so a country restored from storage before this ran would show blank.
+    if (!selectIsBusy(sel)) sel.value = liveState.country || '';
+    sel.onchange = () => {
+      liveState.country = sel.value;
+      localStorage.setItem('sv-live-country', sel.value);
+      loadLiveChannels(true);
+    };
     liveState.countriesRendered = true;
+  }
+
+  function renderLiveLanguages(languages) {
+    const sel = $('#liveLang');
+    if (!sel) return;
+    const entries = Object.entries(languages || {}).sort((a, b) => b[1] - a[1]);
+    /* The language facet is scoped to the selected country, so this list has to
+       be rebuilt when the country changes -- unlike the country list, which is
+       global. Compare a signature so an identical list is never re-written
+       (setSelectOptions would no-op anyway, but this also skips the value
+       bookkeeping while the user has the picker open). */
+    const sig = liveState.country + '|' + entries.map(([n, c]) => n + c).join(',');
+    if (sig === liveState.langsSig) return;
+
+    if (!entries.length) {
+      sel.classList.add('hidden');
+      liveState.langsSig = sig;
+      return;
+    }
+    sel.classList.remove('hidden');
+    const items = [{ value: '', label: t('liveAllLangs') || 'All languages' }];
+    for (const [name, n] of entries) items.push({ value: name, label: `${name} (${n})` });
+    setSelectOptions(sel, items);
+
+    // Drop a language that the new country does not offer, rather than leaving
+    // the control showing a filter that silently matches nothing.
+    if (liveState.lang && !entries.some(([n]) => n === liveState.lang)) {
+      liveState.lang = '';
+      localStorage.setItem('sv-live-lang', '');
+    }
+    if (!selectIsBusy(sel)) sel.value = liveState.lang || '';
+    sel.onchange = () => {
+      liveState.lang = sel.value;
+      localStorage.setItem('sv-live-lang', sel.value);
+      loadLiveChannels(true);
+    };
+    liveState.langsSig = sig;
+    liveState.langsRendered = true;
   }
 
   async function loadLiveChannels(reset) {
@@ -4195,7 +4269,7 @@
 
     const params = new URLSearchParams({
       q: liveState.query, cat: liveState.cat,
-      country: liveState.country,
+      country: liveState.country, lang: liveState.lang,
       limit: String(liveState.limit), offset: String(liveState.offset),
     });
     let data = null;
@@ -4214,6 +4288,7 @@
 
     renderLiveChips(data.categories);
     renderLiveCountries(data.countries);
+    renderLiveLanguages(data.languages);
     liveState.total = data.total;
 
     if (reset) grid.innerHTML = '';
@@ -4353,7 +4428,9 @@
       video.addEventListener('loadedmetadata', () => {
         if (state.live.currentChannel !== channel) return;
         loading.classList.add('hidden');
-        $('#liveMeta').textContent = `${channel.name} · ${channel.cat}`;
+        $('#liveMeta').textContent = [channel.name, liveCategoryLabel(channel.cat),
+        (channel.langs || []).map((l) => l && l.name).filter(Boolean).join('/')]
+        .filter(Boolean).join(' · ');
         video.play().catch(()=>{});
       }, { once: true });
       video.addEventListener('error', () => {
@@ -4384,7 +4461,16 @@
       populateQualityLevels(hls);
       video.play().catch(()=>{});
     });
-    hls.on(HlsClass.Events.LEVEL_SWITCHED, () => populateQualityLevels(hls));
+    // Live ABR switches levels every few seconds. Rebuilding the <select> or
+    // even assigning .value while the native picker is open slams it shut on
+    // Chrome Android -- that is the "quality menu disappears" bug. The option
+    // list only ever changes when the level count changes, so refresh on that
+    // and leave the element alone otherwise.
+    hls.on(HlsClass.Events.LEVEL_SWITCHED, () => {
+      const sel = $('#liveQuality');
+      const want = (hls.levels || []).length + 1; // +1 for Auto
+      if (sel && sel.options.length !== want) populateQualityLevels(hls);
+    });
     hls.on(HlsClass.Events.ERROR, (event, data) => {
       if (!data || !data.fatal || state.live.currentChannel !== channel) return;
       if (data.type === HlsClass.ErrorTypes.NETWORK_ERROR && !networkRecoveryTried) {
@@ -4405,17 +4491,32 @@
   }
   function populateQualityLevels(hls) {
     const select = $('#liveQuality');
+    if (!select) return;
     const levels = hls.levels || [];
-    setSelectOptions(select, [{ value: '-1', label: state.uiLang==='hi'?'ऑटो':'Auto' }].concat(
+    const autoLabel = state.uiLang === 'hi' ? 'ऑटो' : 'Auto';
+    setSelectOptions(select, [{ value: '-1', label: autoLabel }].concat(
       levels.map((level, index) => ({
         value: String(index),
         label: level.height ? level.height + 'p' : `${Math.round(level.bitrate/1000)} kbps`,
       }))
     ));
-    if (!selectIsBusy(select)) select.value = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
-    select.onchange = () => { hls.currentLevel = parseInt(select.value,10); };
+    // Once the user has picked a level explicitly, stop mirroring hls state
+    // into the control -- otherwise ABR keeps yanking it back to Auto.
+    if (!selectIsBusy(select) && !select._svUserPicked) {
+      const next = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
+      if (select.value !== next) select.value = next;
+    }
+    if (!select._svWired) {
+      select._svWired = true;
+      select.addEventListener('change', () => {
+        select._svUserPicked = select.value !== '-1';
+        const live = state.live && state.live.hls;
+        if (live) live.currentLevel = parseInt(select.value, 10);
+      });
+    }
   }
   function destroyLive() {
+    const q = $('#liveQuality'); if (q) q._svUserPicked = false;
     if (state.live.hls) { try { state.live.hls.destroy(); } catch(e){} state.live.hls = null; }
     state.live.currentChannel = null;
     const video = $('#liveVideo');
@@ -4524,16 +4625,35 @@
       else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
     };
     container.addEventListener('keydown', container._trap);
-    setTimeout(()=>first.focus(),80);
+    /* Only pull focus in on the *first* pass for this opening. Re-focusing on
+       every call is what used to slam an open <select> shut: the observer below
+       fires on any class change inside the dialog (loading spinner, live dot,
+       playing/paused state) and each run stole focus back to the first button.
+       Also never yank focus away from something the user is already using. */
+    if (container._trapped) return;
+    container._trapped = true;
+    setTimeout(() => {
+      if (container.classList.contains('hidden')) return;
+      const active = document.activeElement;
+      if (active && active !== document.body && container.contains(active)) return;
+      first.focus();
+    }, 80);
   }
-  new MutationObserver(()=>{
-    if (!$('#detailModal').classList.contains('hidden')) trapFocus($('#detailModal'));
-    if (!$('#playerModal').classList.contains('hidden')) trapFocus($('#playerModal'));
-    if (!$('#settingsModal').classList.contains('hidden')) trapFocus($('#settingsModal'));
-    if (!$('#livePlayerModal').classList.contains('hidden')) trapFocus($('#livePlayerModal'));
-    if (!$('#playlistModal').classList.contains('hidden')) trapFocus($('#playlistModal'));
-    if (!$('#bravePromo').classList.contains('hidden')) trapFocus($('#bravePromo'));
-  }).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class']});
+  // Watch only the dialogs themselves, and act on hidden -> visible edges.
+  const TRAPPED_MODALS = ['#detailModal','#playerModal','#settingsModal','#livePlayerModal','#playlistModal','#bravePromo'];
+  for (const sel of TRAPPED_MODALS) {
+    const el = $(sel);
+    if (!el) continue;
+    let wasOpen = !el.classList.contains('hidden');
+    new MutationObserver(() => {
+      const isOpen = !el.classList.contains('hidden');
+      if (isOpen === wasOpen) return;
+      wasOpen = isOpen;
+      if (isOpen) trapFocus(el);
+      else el._trapped = false;
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+    if (wasOpen) trapFocus(el);
+  }
 
   /* ================= SETTINGS ================= */
   function closeSettings() {

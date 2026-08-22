@@ -15,7 +15,7 @@ const net = require('net');
 const crypto = require('crypto');
 const { extractMovieStreams } = require('./movie-extract');
 
-const VERSION = '12.11.0';
+const VERSION = '12.12.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -764,12 +764,14 @@ const routes = {
     const search = String(q.get('q') || '').trim().toLowerCase().slice(0, 60);
     const cat = String(q.get('cat') || '').trim();
     const country = String(q.get('country') || '').trim().toUpperCase();
+    const lang = String(q.get('lang') || '').trim();
     const limit = Math.min(Math.max(parseInt(q.get('limit'), 10) || 60, 1), 200);
     const offset = Math.max(parseInt(q.get('offset'), 10) || 0, 0);
 
     let list = all;
     if (cat && cat !== 'All') list = list.filter((c) => c.cat === cat);
     if (country) list = list.filter((c) => c.country === country);
+    if (lang) list = list.filter((c) => (c.langs || []).some((l) => (l && l.name) === lang));
     if (search) {
       // Match the display name first, then alternate names, so "star" ranks
       // "Star Plus" above a channel that merely has it as an alias.
@@ -792,6 +794,19 @@ const routes = {
     const countries = {};
     for (const c of all) if (c.country) countries[c.country] = (countries[c.country] || 0) + 1;
 
+    // Language facet follows the country selection: picking India should offer
+    // Hindi/Tamil/Telugu, not all 200 languages in the catalogue.
+    const langScope = country ? all.filter((c) => c.country === country) : all;
+    const languages = {};
+    for (const c of langScope) {
+      for (const l of (c.langs || [])) {
+        if (l && l.name) languages[l.name] = (languages[l.name] || 0) + 1;
+      }
+    }
+    const languagesTrimmed = Object.fromEntries(
+      Object.entries(languages).sort((a, b) => b[1] - a[1]).slice(0, 40)
+    );
+
     return {
       ok: true,
       total: list.length,
@@ -800,6 +815,7 @@ const routes = {
       probed: Boolean(channelCatalogue.probed),
       categories: cats,
       countries,
+      languages: languagesTrimmed,
       channels: list.slice(offset, offset + limit),
     };
   },
@@ -1458,7 +1474,12 @@ const CHANNEL_HOSTS = new Set();
 
 function loadChannelCatalogue() {
   try {
-    const raw = fs.readFileSync(CHANNELS_FILE, 'utf8');
+    // The catalogue ships gzipped (~5x smaller in git and in the deploy
+    // bundle). Plain JSON is still honoured so a hand-edited file works.
+    let raw;
+    const gz = CHANNELS_FILE + '.gz';
+    if (fs.existsSync(gz)) raw = zlib.gunzipSync(fs.readFileSync(gz)).toString('utf8');
+    else raw = fs.readFileSync(CHANNELS_FILE, 'utf8');
     const parsed = JSON.parse(raw);
     const list = Array.isArray(parsed.channels) ? parsed.channels : [];
     CHANNEL_HOSTS.clear();
