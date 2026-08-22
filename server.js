@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
 
-const VERSION = '12.0.0';
+const VERSION = '12.2.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -533,6 +533,9 @@ setInterval(() => {
 }, 60000).unref?.();
 
 /* ---------------- routes ---------------- */
+/* Mirrors of the same anime source API, tried in order. */
+const ANIME_STREAM_HOSTS = ['megavid.buzz', 'megaplay.buzz'];
+
 const routes = {
   '/api/health': async () => ({
     ok: true, version: VERSION, uptime: Math.round(process.uptime()),
@@ -560,6 +563,7 @@ const routes = {
     tmdb_configured: Boolean(TMDB_KEY),
     api_mb: +(stats.apiBytes / 1048576).toFixed(2),
     hls_mb: +(stats.hlsBytes / 1048576).toFixed(2),
+    hls_inflight: hlsInFlight,
     rate_limited: stats.rateLimited,
     backups_used: stats.backupsUsed,
     api_health: apiHealth,
@@ -847,6 +851,60 @@ const routes = {
       async () => { const d = await anilist(AL_LIST, { page: 1, sort: ['SEARCH_MATCH'], search }); return { data: ((d.Page && d.Page.media) || []).map(alMediaToJikan) }; },
       () => jikan('/anime?q=' + encodeURIComponent(search) + '&page=1&sfw=true'), 'jikan');
   },
+  /* Native anime playback: resolve a direct HLS manifest + subtitle tracks so
+     the in-house player can offer real quality / audio / subtitle switching
+     instead of surrendering control to a third-party iframe. */
+  '/api/anime/stream': async (q) => {
+    const id = positiveInt(q.get('id'), 'anime id');
+    const ep = Math.max(1, Math.min(9999, parseInt(q.get('ep'), 10) || 1));
+    const kind = q.get('source') === 'anilist' ? 'ani' : 'mal';
+    const lang = q.get('lang') === 'dub' ? 'dub' : 'sub';
+    const cacheKey = `animestream:${kind}:${id}:${ep}:${lang}`;
+    return cached(cacheKey, 5 * 60 * 1000, async () => {
+    let lastError = 'no anime stream provider responded';
+    for (const host of ANIME_STREAM_HOSTS) {
+      const endpoint = `https://${host}/api/${kind}/${id}/${ep}/${lang}`;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      try {
+        const upstream = await fetch(endpoint, {
+          signal: ctrl.signal,
+          headers: { 'User-Agent': UA, Accept: 'application/json,*/*', Referer: `https://${host}/`, Origin: `https://${host}` },
+        });
+        clearTimeout(timer);
+        if (!upstream.ok) { lastError = `${host} responded ${upstream.status}`; continue; }
+        const body = await upstream.json();
+        if (!body || body.success === false || !body.source) { lastError = `${host} returned no source`; continue; }
+
+        // Route the manifest and every subtitle through our proxy: the CDN is
+        // hotlink-protected and the browser cannot forge a Referer.
+        const payload = {
+          ok: true,
+          provider: host,
+          lang,
+          episode: ep,
+          source: '/api/hls?url=' + encodeURIComponent(String(body.source)),
+          tracks: (Array.isArray(body.tracks) ? body.tracks : [])
+            .filter((t) => t && t.file && String(t.kind || 'captions') !== 'thumbnails')
+            .map((t) => ({
+              file: '/api/hls?url=' + encodeURIComponent(String(t.file)),
+              label: String(t.label || 'Subtitles'),
+              kind: String(t.kind || 'captions'),
+              default: !!t.default,
+            })),
+          intro: body.intro && Number.isFinite(body.intro.start) ? body.intro : null,
+          outro: body.outro && Number.isFinite(body.outro.start) ? body.outro : null,
+        };
+        return payload;
+      } catch (e) {
+        clearTimeout(timer);
+        lastError = e.name === 'AbortError' ? `${host} timed out` : `${host} unreachable`;
+      }
+    }
+    // Not a throw: the client falls back to the iframe providers.
+    return { ok: false, error: lastError, source: null, tracks: [] };
+    }, false);
+  },
   '/api/anime/details': (q) => {
     const id = positiveInt(q.get('id'), 'anime id');
     const source = q.get('source') === 'anilist' ? 'anilist' : 'mal';
@@ -916,8 +974,27 @@ const HLS_ALLOWED_SUFFIXES = [
 ];
 const HLS_ALLOWED_EXACT = new Set([
   '103.225.189.136',
+  // Anime stream hosts (native player path). These serve the m3u8/vtt returned
+  // by the anime source APIs below and require a matching Referer.
+  'megavid.buzz', 'megaplay.buzz', 'animeplay.cfd',
   ...String(process.env.HLS_ALLOWED_HOSTS || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean),
 ]);
+
+/* Some CDNs hotlink-protect their media and return 403 unless the request
+   carries the referer of the site that issued the link. The browser cannot set
+   Referer cross-origin, which is exactly why these streams must be proxied. */
+const HLS_REFERER_BY_HOST = [
+  [/(^|\.)megavid\.buzz$/, 'https://megavid.buzz/'],
+  [/(^|\.)megaplay\.buzz$/, 'https://megaplay.buzz/'],
+  [/(^|\.)animeplay\.cfd$/, 'https://animeplay.cfd/'],
+];
+
+function hlsRefererFor(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  const hit = HLS_REFERER_BY_HOST.find(([re]) => re.test(host));
+  return hit ? hit[1] : '';
+}
+
 let hlsInFlight = 0;
 
 function isPrivateAddress(address) {
@@ -971,12 +1048,14 @@ async function fetchHlsUpstream(initialUrl, req) {
     const timer = setTimeout(() => ctrl.abort(), 15000);
     let response;
     try {
+      const referer = hlsRefererFor(current.hostname);
       response = await fetch(current, {
         signal: ctrl.signal,
         redirect: 'manual',
         headers: {
           'User-Agent': UA,
           Accept: req.headers.accept || '*/*',
+          ...(referer ? { Referer: referer, Origin: referer.replace(/\/$/, '') } : {}),
           ...(req.headers.range ? { Range: req.headers.range } : {}),
         },
       });
@@ -1066,17 +1145,47 @@ async function hlsProxy(req, res, u) {
     let total = 0;
     const maxBytes = 32 * 1024 * 1024;
     while (true) {
+      // Live TV viewers change channels constantly, which aborts the socket
+      // mid-segment. Stop pulling from upstream the moment that happens.
+      if (res.destroyed || res.writableEnded || !res.writable) {
+        await reader.cancel('client disconnected').catch(() => {});
+        break;
+      }
       const { done, value } = await reader.read();
       if (done) break;
       total += value.byteLength;
       if (total > maxBytes) {
-        await reader.cancel('segment too large');
+        await reader.cancel('segment too large').catch(() => {});
         throw httpError(502, 'stream segment too large');
       }
-      if (!res.write(Buffer.from(value))) await new Promise((resolve) => res.once('drain', resolve));
+      if (!res.write(Buffer.from(value))) {
+        // Never await 'drain' alone: on a closed socket that event never fires,
+        // so the request would hang forever and leak its in-flight slot until
+        // the proxy wedged at 503 and Live TV stopped loading for everyone.
+        const drained = await new Promise((resolve) => {
+          let settled = false;
+          const finish = (ok) => { if (!settled) { settled = true; cleanup(); resolve(ok); } };
+          const onDrain = () => finish(true);
+          const onStop = () => finish(false);
+          const timer = setTimeout(() => finish(false), 20000);
+          function cleanup() {
+            clearTimeout(timer);
+            res.off('drain', onDrain);
+            res.off('close', onStop);
+            res.off('error', onStop);
+          }
+          res.once('drain', onDrain);
+          res.once('close', onStop);
+          res.once('error', onStop);
+        });
+        if (!drained) {
+          await reader.cancel('client gone').catch(() => {});
+          break;
+        }
+      }
     }
     stats.hlsBytes += total;
-    res.end();
+    if (!res.writableEnded) res.end();
   } catch (e) {
     if (!res.headersSent) {
       res.writeHead(e.status || 502, securityHeaders({ 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }));
@@ -1161,6 +1270,7 @@ const staticCache = new Map();
 const ROOT_PUBLIC_ALLOW = new Set([
   'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'sw.js',
   'robots.txt', 'sitemap.xml', 'favicon.svg', 'icon-192.png', 'icon-512.png',
+  'hls.min.js',
 ]);
 function cachedStatic(file, stat) {
   const stamp = `${stat.size}:${stat.mtimeMs}`;

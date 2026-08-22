@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://image.tmdb.org" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
-<link rel="stylesheet" href="style.css?v=12.0.0" />
+<link rel="stylesheet" href="style.css?v=12.2.0" />
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="skipContent">Skip to content</a>
@@ -290,19 +290,24 @@
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 frameborder="0" scrolling="no"
                 referrerpolicy="origin"></iframe>
+        <!-- Native player: used when a direct HLS stream is available, which is
+             what makes real quality / audio / subtitle switching possible. -->
+        <video id="playerVideo" class="player-native hidden" playsinline controls
+               crossorigin="anonymous" preload="metadata"></video>
+        <button class="skip-intro hidden" id="playerSkipIntro" data-i18n="skipIntro">Skip intro</button>
         <div class="player-loading" id="playerLoading">
           <div class="pl-spinner"></div>
           <div class="pl-text">Loading stream…</div>
           <div class="pl-sub" id="plSourceName"></div>
         </div>
       </div>
-      <button class="player-nextsrc" id="playerNextSrc" title="Try next server">
+      <button class="player-nextsrc" id="playerNextSrc" title="Try next server" data-i18n="nextServer">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         Next server
       </button>
       <div class="player-inline-recommendations hidden" id="playerInlineRecommendations" aria-label="Recommended videos below the player">
         <div class="inline-rec-head">
-          <div><span class="inline-rec-kicker">NEXT UP</span><strong data-i18n="recommended">Recommended for you</strong></div>
+          <div><span class="inline-rec-kicker" data-i18n="nextUpKicker">NEXT UP</span><strong data-i18n="recommended">Recommended for you</strong></div>
           <span class="inline-rec-head-actions">
             <button class="inline-rec-open" id="inlineRecOpen" type="button" data-i18n="seeAllUp">See all ↑</button>
             <button class="inline-rec-close" id="inlineRecClose" type="button" aria-label="Hide recommendations" title="Hide">✕</button>
@@ -318,14 +323,14 @@
 
       <section class="player-page player-controls" id="playerControls" aria-label="Recommendations and player controls">
       <div class="feed-page-head">
-        <div><span class="feed-kicker">UP NEXT</span><strong data-i18n="recommended">Recommended for you</strong></div>
+        <div><span class="feed-kicker" data-i18n="nextUpKicker">UP NEXT</span><strong data-i18n="recommended">Recommended for you</strong></div>
         <span class="feed-page-hint" data-i18n="swipeDown">Swipe down to return</span>
       </div>
       <!-- Tap to unmute banner -->
       <div class="unmute-banner" id="unmuteBanner">
         <button class="unmute-btn" id="unmuteBtn">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-          Tap to unmute
+          <span data-i18n="tapToUnmute">Tap to unmute</span>
         </button>
         <span class="unmute-hint" data-i18n="unmuteHint">If sound is muted, tap the speaker icon inside the video</span>
       </div>
@@ -336,8 +341,15 @@
           <label class="lc-ctl" id="pcAudioControl">
             <span data-i18n="preferredAudio">Preferred audio</span>
             <select id="pcLang" class="pc-select" title="Requests this track from compatible players">
-              <option value="">Auto (provider default)</option>
+              <option value="" data-i18n="preferredAudioAuto">Auto (provider default)</option>
               <option value="hi">Hindi</option>
+            </select>
+          </label>
+          <label class="lc-ctl hidden" id="pcAnimeAudioControl">
+            <span data-i18n="animeAudio">Anime audio</span>
+            <select id="pcAnimeAudio" class="pc-select" aria-label="Anime audio track">
+              <option value="sub" data-i18n="animeSub">Subbed · original voices</option>
+              <option value="dub" data-i18n="animeDub">Dubbed · English voices</option>
             </select>
           </label>
           <label class="lc-ctl" id="pcQualityControl">
@@ -349,6 +361,12 @@
               <option value="720">HD · 720p</option>
               <option value="480">SD · 480p</option>
               <option value="360">Low · 360p</option>
+            </select>
+          </label>
+          <label class="lc-ctl hidden" id="pcSubtitleControl">
+            <span data-i18n="subtitles">Subtitles</span>
+            <select id="pcSubtitle" class="pc-select" aria-label="Subtitle track">
+              <option value="off" data-i18n="subtitlesOff">Off</option>
             </select>
           </label>
           <label class="lc-ctl" id="pcSpeedControl">
@@ -645,6 +663,6 @@
 </button>
 
 <noscript><div class="noscript">JavaScript is required to use StreamVerse.</div></noscript>
-<script src="app.js?v=12.0.0" defer></script>
+<script src="app.js?v=12.2.0" defer></script>
 </body>
 </html>
