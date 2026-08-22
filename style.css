@@ -938,8 +938,8 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 .player-feed::-webkit-scrollbar{display:none}
 .player-page{position:relative;width:100%;min-height:100dvh;scroll-snap-align:start;scroll-snap-stop:always}
 .player-stage{height:100dvh;min-height:100dvh;max-height:none;flex:0 0 100dvh;padding-top:62px;align-items:center}
-.player-video-wrap{width:min(100%,calc(100dvh * 16 / 9));max-width:1600px;max-height:calc(100dvh - 76px);aspect-ratio:16/9;margin:0 auto}
-.player-controls{height:auto;min-height:100dvh;flex:0 0 auto;overflow:visible;padding:clamp(84px,10vh,116px) clamp(16px,4vw,48px) max(30px,env(safe-area-inset-bottom));display:flex;flex-direction:column;background:linear-gradient(180deg,#0b0b12 0%,#050508 100%)}
+.player-video-wrap{width:min(100%,calc(100dvh * 16 / 9));max-width:1600px;max-height:calc(100dvh - 76px - var(--pc-bar-h,74px));aspect-ratio:16/9;margin:0 auto}
+.player-controls{height:auto;min-height:100dvh;flex:0 0 auto;overflow:visible;padding:clamp(84px,10vh,116px) clamp(16px,4vw,48px) calc(var(--pc-bar-h,74px) + max(30px,env(safe-area-inset-bottom)));display:flex;flex-direction:column;background:linear-gradient(180deg,#0b0b12 0%,#050508 100%)}
 .feed-page-head{order:0;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;max-width:1220px;width:100%;margin:0 auto 20px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.1)}
 .feed-page-head>div{display:flex;flex-direction:column;gap:4px}
 .feed-page-head strong{font-size:clamp(20px,3vw,30px);font-weight:900;letter-spacing:-.025em}
@@ -958,26 +958,42 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 .anime-hidden{display:none!important}
 
 /* ============================================================
-   FULLSCREEN. The player is a vertical feed: video on page one,
-   controls on page two. In fullscreen there is nothing to swipe
-   to, so the language / quality / speed row was simply gone —
-   which is why fullscreen looked like it had no options at all.
-   Pin that row over the video instead. position:fixed resolves
-   against the fullscreen element, so this stays inside it.
+   ALWAYS-ON CONTROL BAR.
+   The player is a two-page vertical feed: video on page one,
+   controls on page two. That meant language / quality / speed
+   were one swipe away and most people simply never found them —
+   the player looked like it had no options at all.
+   The row is now pinned to the bottom of the viewport at all
+   times, in both windowed and fullscreen mode. position:fixed
+   resolves against the fullscreen element when one is active,
+   so a single rule covers both cases.
    ============================================================ */
-.player:fullscreen .player-stage,
-.player:-webkit-full-screen .player-stage{padding-top:0}
+.player-overlay:not(.hidden) .pc-lang-row{
+  position:fixed;left:0;right:0;bottom:0;z-index:80;
+  margin:0;max-width:none;
+  padding:9px clamp(10px,3vw,26px) max(9px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(6,6,12,.55),rgba(4,4,9,.96));
+  backdrop-filter:blur(12px);
+  border-top:1px solid rgba(255,255,255,.15);
+  opacity:1;transform:none;pointer-events:auto;
+  transition:opacity .22s ease,transform .22s ease;
+}
+.player-overlay:not(.hidden) .pc-lang-controls{
+  max-width:1220px;margin:0 auto;
+  display:flex;flex-wrap:wrap;align-items:flex-end;
+  gap:10px;row-gap:8px;
+}
+/* Video sits directly under the header rather than floating in the middle of
+   the letterbox, so the black band is one block at the bottom, not two. */
+.player-overlay:not(.hidden) .player-stage{align-items:flex-start}
+@media(min-width:761px){
+  .player-overlay:not(.hidden) .player-stage{align-items:center}
+}
+/* Auto-hide only in fullscreen, where the video is the whole screen. */
 .player:fullscreen .pc-lang-row,
 .player:-webkit-full-screen .pc-lang-row{
-  position:fixed;left:0;right:0;bottom:0;z-index:70;
-  margin:0;max-width:none;padding:10px clamp(12px,3vw,28px) max(12px,env(safe-area-inset-bottom));
-  background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.92));
-  backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.14);
-  opacity:0;transform:translateY(100%);transition:opacity .2s ease,transform .2s ease;
-  pointer-events:none;
+  opacity:0;transform:translateY(100%);pointer-events:none;
 }
-/* Reveal on any pointer activity near the bottom, and keep it up while a
-   dropdown is actually being used. */
 .player:fullscreen:hover .pc-lang-row,
 .player:-webkit-full-screen:hover .pc-lang-row,
 .player:fullscreen.fs-bar-on .pc-lang-row,
@@ -986,14 +1002,39 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 .player:-webkit-full-screen .pc-lang-row:focus-within{
   opacity:1;transform:translateY(0);pointer-events:auto;
 }
-.player:fullscreen .pc-lang-controls,
-.player:-webkit-full-screen .pc-lang-controls{
-  max-width:1220px;margin:0 auto;flex-wrap:wrap;row-gap:8px;
+.player:fullscreen .player-stage,
+.player:-webkit-full-screen .player-stage{padding-top:0}
+/* Lift the video so the native <video> controls never sit under our bar. The
+   real bar height is measured at runtime and published as --pc-bar-h; the
+   literal is only the pre-measurement fallback. */
+.player-overlay:not(.hidden) .player-stage{padding-bottom:var(--pc-bar-h,74px)}
+.player:fullscreen .player-stage,
+.player:-webkit-full-screen .player-stage{padding-bottom:0}
+@media(max-width:760px){
+  .player-overlay:not(.hidden) .player-stage{padding-bottom:var(--pc-bar-h,96px)}
+  .player-overlay:not(.hidden) .pc-lang-row{padding-top:6px}
+  .player-overlay:not(.hidden) .pc-lang-controls{gap:8px;row-gap:6px}
+  .player-overlay:not(.hidden) .pc-lang-row .lc-ctl>span{
+    font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    margin-bottom:2px;opacity:.72;
+  }
+  .player-overlay:not(.hidden) .pc-lang-row select{
+    padding-top:8px;padding-bottom:8px;font-size:14px;
+  }
+  /* Hints like "5 languages available" are nice on desktop but they push the
+     bar to a third row on a phone. */
+  .player-overlay:not(.hidden) .pc-lang-row .lc-ctl[data-note]:not(.ctl-unsupported)::after{display:none}
+  /* The "unsupported" note is an actual instruction, so keep it, just tighter. */
+  .player-overlay:not(.hidden) .pc-lang-row .lc-ctl.ctl-unsupported::after{
+    max-width:none;margin-top:2px;
+  }
+  .player-overlay:not(.hidden) .lc-ctl{flex:1 1 132px;min-width:0}
+  .player-overlay:not(.hidden) .lc-ctl select{width:100%}
+  /* Secondary buttons would wrap the row onto three lines on a phone. */
+  .player-overlay:not(.hidden) .pc-lang-row #pcVoiceBoost,
+  .player-overlay:not(.hidden) .pc-lang-row #pcReload,
+  .player-overlay:not(.hidden) .pc-lang-row #audioTrackStatus{display:none}
 }
-/* Native <video> controls sit at the very bottom too; lift them clear so the
-   two bars never overlap. */
-.player:fullscreen:hover .player-native,
-.player:-webkit-full-screen:hover .player-native{margin-bottom:0}
 
 .anime-video-chip{min-width:74px}
 .anime-empty{display:block;padding:8px 2px;line-height:1.5}
@@ -1003,7 +1044,7 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
 @media(max-width:760px){
   .player-top{padding-left:12px;padding-right:12px}
   .player-stage{padding-top:56px}
-  .player-video-wrap{width:100%;max-width:100%;max-height:calc(100dvh - 68px)}
+  .player-video-wrap{width:100%;max-width:100%;max-height:calc(100dvh - 68px - var(--pc-bar-h,96px))}
   .feed-page-head{margin-bottom:14px}
   .feed-page-hint{font-size:11px}
   .player-controls{padding-left:14px;padding-right:14px}
@@ -1023,7 +1064,14 @@ body.touch .card-hover-bar .mini-btn{padding:9px 6px;font-size:11.5px}
    player handles any 16:9 letterboxing internally; this removes the old
    38–42vh half-screen cap. */
 @media(max-width:760px){
-  .player-stage .player-video-wrap{width:100%;height:100%;max-width:none;max-height:none;aspect-ratio:auto}
+  /* Keep the wrap at the video's own 16:9 shape and pin it under the header.
+     Stretching it to height:100% left the frame floating in the middle of a
+     tall black page with dead space above and below it. */
+  .player-stage .player-video-wrap{
+    width:100%;max-width:none;
+    height:auto;aspect-ratio:16/9;
+    max-height:calc(100dvh - 62px - var(--pc-bar-h,96px));
+  }
 }
 
 /* ============================================================
@@ -1319,6 +1367,21 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
 .voice-boost-btn.active{
   color:#d1fae5;border-color:rgba(16,185,129,.55);background:rgba(16,185,129,.16);
   box-shadow:0 0 0 1px rgba(16,185,129,.12) inset;
+}
+
+/* Direct-playback indicator. Lit only while our own player is actually
+   carrying the video, so it reports a fact rather than a preference —
+   the viewer can tell at a glance why the quality and language menus
+   are live on one title and inert on another. */
+#pcDirectToggle{position:relative;font-weight:800;letter-spacing:.02em;}
+#pcDirectToggle.active{
+  color:#c7d2fe;border-color:rgba(99,102,241,.6);background:rgba(99,102,241,.18);
+  box-shadow:0 0 0 1px rgba(99,102,241,.14) inset;
+}
+#pcDirectToggle.active::before{
+  content:"";width:6px;height:6px;border-radius:50%;
+  background:#818cf8;box-shadow:0 0 6px rgba(129,140,248,.9);
+  display:inline-block;margin-right:6px;vertical-align:middle;
 }
 
 /* ============================================================

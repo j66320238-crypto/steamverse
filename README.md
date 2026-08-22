@@ -1,6 +1,50 @@
-# StreamVerse v12.2
+# StreamVerse v12.9
 
 Render-ready movies, TV, anime and public Live TV web app. Vanilla HTML/CSS/JS frontend with a zero-dependency Node backend.
+
+## v12.9 — direct playback for movies & TV, and a language menu that means something
+
+**Direct (non-iframe) playback.** Until now only anime played in our own `<video>`
+element; every movie and episode ran inside a third-party iframe. That is the
+reason the quality, audio-language and speed controls felt fake for them — a
+cross-origin iframe cannot be told to change its bitrate or its audio track, so
+those menus were only ever *requests* the provider was free to ignore.
+
+`/api/movie/stream` now resolves the same providers server-side and returns a
+plain HLS master, which hls.js plays in our own player. When that works the
+quality menu lists the manifest's real levels, the speed control applies, and
+the language menu lists streams we have actually verified.
+
+- **Iframes are still there.** Direct playback is attempted first and the iframe
+  takes over silently whenever it cannot resolve, so a title that used to play
+  still plays. The **Direct / Embedded** button in the control bar shows which
+  mode is live and lets you force either one; the choice persists.
+- **The language menu now lists what exists, not what TMDB describes.** It used
+  to be filled from TMDB's `spoken_languages`, which describes the *film* — so
+  picking "Hindi" changed nothing at all, because nothing behind it could play
+  Hindi. Entries are now one per resolved stream, and choosing one swaps the
+  stream in place and keeps your position. Original-audio tracks are named after
+  the title's original language, so a Hindi film's main track reads "Hindi
+  (original)" rather than a vague "Original audio".
+- **Rotating segment CDNs no longer 403.** These providers hand out a fresh
+  hostname per request (`peakstorm.top` → `primecrown.top` → `polarcandy.top`),
+  so a hand-maintained allowlist went stale within days and our *own* proxy
+  blocked the video. Hosts referenced by a manifest we already trust are now
+  trusted transitively for six hours and inherit its referer. No host can enter
+  that set without first being named by an already-trusted playlist.
+- **Latency.** Provider lookups run concurrently and are capped at three per
+  request, the shared seed is cached (querying it per provider triggered an
+  HTTP 429 that killed results for a minute), and rendition URLs are collapsed
+  to their master before probing. Resolution went from ~13 s to 1–4 s.
+
+### Honest limits
+
+Not every title resolves a direct stream, and most resolve only their original
+audio — the upstream Hindi provider is broken at source and the second
+extractor's regional servers returned nothing usable across 23 measured
+attempts. When there is one audio track the menu says so instead of offering
+choices that do nothing. Those titles fall back to the iframe, exactly as before.
+
 
 ## v12 improvements
 

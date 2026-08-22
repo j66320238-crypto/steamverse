@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.6.0';
+  const APP_VERSION = '12.9.0';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -86,6 +86,8 @@
       swipeRecommendations: 'Swipe up for recommendations', recommended: 'Recommended for you', seeAllUp: 'See all ↑',
       swipeDown: 'Swipe down to return', reload: 'Reload', youMayLike: 'You may also like', episodes: 'Episodes',
       source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio', voiceBoost: 'Voice Boost', voiceBoostOn: 'Voice Boost enabled', voiceBoostOff: 'Voice Boost disabled', voiceVolume: 'Voice Volume',
+      directMode: 'Direct', embedMode: 'Embedded', directModeHint: 'Direct playback: quality, language and speed work in our own player',
+      directOn: 'Direct playback on', directOff: 'Using the provider player', directUnavailable: 'No direct stream for this title — using the provider player',
       settings: 'Settings', interfaceLanguage: 'Interface Language',
       interfaceLanguageNote: 'Changes website buttons, menus and messages.', contentLanguage: 'Titles & Description Language', contentLanguageNote: 'Titles and descriptions use this language where a translation exists.',
       countryNote: 'Used for official streaming options under the player.', sourceNote: 'Default source when you tap Watch.',
@@ -154,7 +156,9 @@
       swipeRecommendations: 'सुझावों के लिए ऊपर स्वाइप करें', recommended: 'आपके लिए सुझाव', seeAllUp: 'सभी देखें ↑',
       swipeDown: 'वापस आने के लिए नीचे स्वाइप करें', reload: 'फिर लोड करें', youMayLike: 'आपको यह भी पसंद आ सकता है',
       episodes: 'एपिसोड', source: 'सर्वर', prev: '‹ पिछला', next: 'अगला ›', mute: 'म्यूट', unmute: 'आवाज़ चालू',
-      clearAudio: 'साफ़ ऑडियो', voiceBoost: 'वॉइस बूस्ट', voiceBoostOn: 'वॉइस बूस्ट चालू', voiceBoostOff: 'वॉइस बूस्ट बंद', voiceVolume: 'आवाज़ की ताकत', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
+      clearAudio: 'साफ़ ऑडियो', voiceBoost: 'वॉइस बूस्ट', voiceBoostOn: 'वॉइस बूस्ट चालू', voiceBoostOff: 'वॉइस बूस्ट बंद', voiceVolume: 'आवाज़ की ताकत',
+      directMode: 'डायरेक्ट', embedMode: 'एम्बेडेड', directModeHint: 'डायरेक्ट प्लेबैक: क्वालिटी, भाषा और स्पीड हमारे अपने प्लेयर में काम करती हैं',
+      directOn: 'डायरेक्ट प्लेबैक चालू', directOff: 'प्रोवाइडर का प्लेयर इस्तेमाल हो रहा है', directUnavailable: 'इस टाइटल के लिए डायरेक्ट स्ट्रीम नहीं मिली — प्रोवाइडर प्लेयर चल रहा है', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
       interfaceLanguageNote: 'वेबसाइट के बटन, मेनू और संदेशों की भाषा बदलती है।', contentLanguage: 'शीर्षक और विवरण की भाषा', contentLanguageNote: 'जहाँ अनुवाद उपलब्ध है, शीर्षक और विवरण इसी भाषा में दिखेंगे।',
       countryNote: 'प्लेयर के नीचे आधिकारिक सेवाएँ दिखाने के लिए उपयोग होता है।', sourceNote: 'देखें दबाने पर खुलने वाला डिफ़ॉल्ट सर्वर।',
       emptyMyList: 'आपकी सूची खाली है। कोई शीर्षक जोड़कर यहाँ सहेजें।', emptyPlaylist: 'यह प्लेलिस्ट खाली है। कोई शीर्षक चुनकर इसमें जोड़ें।',
@@ -274,6 +278,17 @@
     // Peachify documents dub/audio selection, but its anti-bot gateway can
     // reject some regions. Keep it as an explicit Hindi-source option instead
     // of trapping Auto mode on a challenge page.
+    // --- round-8 additions: verified reachable 2026-08-22 (HTTP 200, real
+    // player HTML). Each was probed directly rather than trusted from a list.
+    { id:'vidjoy', name:'VidJoy · Multi-audio', color:'#f59e0b', priority:28, originalAudio:true,
+      movie:(id,lang)=>withQuery(`https://vidjoy.pro/embed/movie/${id}`,{autoplay:'true',lang:lang||'',adFree:'true'}),
+      tv:(id,s,e,lang)=>withQuery(`https://vidjoy.pro/embed/tv/${id}/${s}/${e}`,{autoplay:'true',lang:lang||'',adFree:'true',nextButton:'true'}) },
+    { id:'vidrock', name:'VidRock · Hindi', color:'#ec4899', priority:24, originalAudio:true,
+      movie:(id,lang)=>withQuery(`https://vidrock.net/movie/${id}`,{lang:lang||'',autoplay:'true'}),
+      tv:(id,s,e,lang)=>withQuery(`https://vidrock.net/tv/${id}/${s}/${e}`,{lang:lang||'',autoplay:'true'}) },
+    { id:'111movies', name:'111Movies · Backup', color:'#64748b', priority:18,
+      movie:(id)=>`https://111movies.com/movie/${id}`,
+      tv:(id,s,e)=>`https://111movies.com/tv/${id}/${s}/${e}` },
     { id:'vidsrc-to', name:'VidSrc.to', color:'#e50914', priority:14,
       movie:(id)=>`https://vidsrc.to/embed/movie/${id}`,
       tv:(id,s,e)=>`https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
@@ -437,6 +452,12 @@
         animeSourceId: AUTO_ID, animeAutoIdx: 0, animeDirect: false,
         // Native HLS playback state
         nativeActive: false, nativeLevels: [], nativeSkip: null, nativeAudio: [], nativeProvider: '',
+        /* Direct (non-iframe) movie/TV playback. `directStreams` holds every
+           verified stream for the current title, one per language, so the
+           audio menu can offer real choices; `directPreferred` is the user's
+           toggle between direct and embedded playback. */
+        directActive: false, directStreams: [], directSubtitles: [], directLang: '',
+        directPreferred: localStorage.getItem('sv-direct') !== '0',
       };
     })(),
     sandbox: localStorage.getItem('sv-sandbox') === '1',
@@ -1786,6 +1807,9 @@
     state.player.nativeSkip = null;
     state.player.nativeAudio = [];
     state.player.nativeProvider = '';
+    // Note: directStreams/directLang deliberately survive. Switching audio
+    // language tears the player down and rebuilds it, and the list of
+    // available languages belongs to the title, not to one attachment.
     // The selects can still be holding this stream's `lvl:N` / `aud:N` options.
     // Those indexes die with the Hls instance, so leaving them in place is what
     // made the menus look empty/broken after any click. Restore static options.
@@ -1842,18 +1866,13 @@
     const levels = nativeHls.levels || [];
     p.nativeLevels = levels;
     const previous = select.value;
-    select.innerHTML = '';
-    const auto = document.createElement('option');
-    auto.value = 'auto'; auto.textContent = t('qualityAuto') || 'Auto';
-    select.appendChild(auto);
-    levels.forEach((level, index) => {
-      const opt = document.createElement('option');
-      opt.value = 'lvl:' + index;
-      const height = level.height || 0;
-      const rate = level.bitrate ? ` · ${Math.round(level.bitrate / 1000)}kbps` : '';
-      opt.textContent = height ? `${height}p${rate}` : `Level ${index + 1}${rate}`;
-      select.appendChild(opt);
-    });
+    setSelectOptions(select, [{ value: 'auto', label: t('qualityAuto') || 'Auto' }].concat(
+      levels.map((level, index) => {
+        const height = level.height || 0;
+        const rate = level.bitrate ? ` · ${Math.round(level.bitrate / 1000)}kbps` : '';
+        return { value: 'lvl:' + index, label: height ? `${height}p${rate}` : `Level ${index + 1}${rate}` };
+      })
+    ));
     // Honour a saved cap by picking the closest level at or below it.
     if (previous && previous.startsWith('lvl:') && levels[Number(previous.slice(4))]) {
       select.value = previous;
@@ -1937,6 +1956,75 @@
 
   // Fill #pcAnimeAudio with the manifest's real audio renditions. Falls back to
   // the legacy SUB/DUB selector (handled by syncAnimeAudioControl) when the
+  // ---------------------------------------------------------------
+  // BUGFIX: dropdowns that closed themselves.
+  //
+  // hls.js fires AUDIO_TRACKS_UPDATED / LEVEL_SWITCHED repeatedly during
+  // normal playback. Every one of those rebuilt the <select> with
+  // innerHTML='', and a native <select> whose options are replaced while its
+  // picker is open closes the picker instantly. That is exactly the
+  // "option aata hai phir khud hat jaata hai" symptom.
+  //
+  // These helpers make rebuilding idempotent: if the option list is already
+  // identical, the DOM is left completely untouched, so an open picker keeps
+  // living. They also refuse to touch a <select> the user is actively using.
+  // ---------------------------------------------------------------
+  const openSelects = new WeakSet();
+  function markSelectBusy(select) {
+    if (!select || select.dataset.svBusyWired === '1') return;
+    select.dataset.svBusyWired = '1';
+    // 'mousedown'/'touchstart' fire when the picker opens; blur/change/keyup
+    // when it closes. Chrome gives no dedicated event, so this is the
+    // portable approximation.
+    const open = () => openSelects.add(select);
+    const close = () => openSelects.delete(select);
+    select.addEventListener('mousedown', open);
+    select.addEventListener('touchstart', open, { passive: true });
+    select.addEventListener('focus', open);
+    select.addEventListener('change', close);
+    select.addEventListener('blur', close);
+    select.addEventListener('keyup', (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); });
+  }
+  function selectIsBusy(select) {
+    return Boolean(select) && (openSelects.has(select) || document.activeElement === select);
+  }
+  // Returns true if it actually rewrote the DOM.
+  function setSelectOptions(select, items, opts) {
+    if (!select) return false;
+    markSelectBusy(select);
+    const want = items.map((o) => `${o.value}\u0000${o.label}`).join('\u0001');
+    const have = Array.from(select.options).map((o) => `${o.value}\u0000${o.textContent}`).join('\u0001');
+    if (want === have) return false;               // identical: do not touch
+    if (selectIsBusy(select) && !(opts && opts.force)) {
+      // The user has the picker open. Rebuilding now would slam it shut.
+      // Stash the list and apply it the moment they are done.
+      select._svPending = items;
+      if (!select._svPendingWired) {
+        select._svPendingWired = true;
+        const flush = () => {
+          const pending = select._svPending;
+          select._svPending = null;
+          if (pending) setSelectOptions(select, pending, { force: true });
+        };
+        select.addEventListener('blur', flush);
+        select.addEventListener('change', () => setTimeout(flush, 0));
+      }
+      return false;
+    }
+    const previous = select.value;
+    select.innerHTML = '';
+    items.forEach((item) => {
+      const opt = document.createElement('option');
+      opt.value = item.value;
+      opt.textContent = item.label;
+      if (item.disabled) opt.disabled = true;
+      select.appendChild(opt);
+    });
+    // Keep the user's choice selected across a legitimate rebuild.
+    if (previous && items.some((item) => item.value === previous)) select.value = previous;
+    return true;
+  }
+
   // stream is single-audio, so nothing regresses on the old provider.
   function syncNativeAudioTracks() {
     const p = state.player;
@@ -1949,13 +2037,9 @@
       index, lang: normalizeAudioLang(track.lang || track.language),
       label: audioTrackLabel(track, index),
     }));
-    select.innerHTML = '';
-    p.nativeAudio.forEach((track) => {
-      const opt = document.createElement('option');
-      opt.value = 'aud:' + track.index;
-      opt.textContent = track.label;
-      select.appendChild(opt);
-    });
+    setSelectOptions(select, p.nativeAudio.map((track) => ({
+      value: 'aud:' + track.index, label: track.label,
+    })));
     select.disabled = false;
     control?.classList.remove('hidden', 'anime-hidden', 'ctl-unsupported');
     control?.setAttribute('data-note', state.uiLang === 'hi'
@@ -2017,15 +2101,9 @@
     const select = $('#pcSubtitle');
     if (!control || !select) return;
     const list = tracks || [];
-    select.innerHTML = '';
-    const off = document.createElement('option');
-    off.value = 'off'; off.textContent = t('subtitlesOff') || 'Off';
-    select.appendChild(off);
-    list.forEach((track, index) => {
-      const opt = document.createElement('option');
-      opt.value = String(index); opt.textContent = track.label || `Track ${index + 1}`;
-      select.appendChild(opt);
-    });
+    setSelectOptions(select, [{ value: 'off', label: t('subtitlesOff') || 'Off' }].concat(
+      list.map((track, index) => ({ value: String(index), label: track.label || `Track ${index + 1}` }))
+    ));
     control.classList.toggle('hidden', !list.length);
     const preferred = list.findIndex((track) => track.default);
     select.value = preferred >= 0 ? String(preferred) : 'off';
@@ -2077,6 +2155,145 @@
     if (!data || !data.ok || !data.source) return false;
     if (!p.active || p.loadToken !== token || request !== nativeReqToken) return false;
 
+    // ---------------------------------------------------------------
+    // CROSS-PROVIDER REMIX
+    //
+    // The complaint: the provider that HAS Hindi has poor video, the
+    // provider with good video has no Hindi. When the primary master is
+    // single-language we ask the server for the OTHER provider's master and
+    // graft its audio renditions onto the good video via /api/hls/remix.
+    // The player then sees one master with good video + every language.
+    //
+    // Only attempted when the primary genuinely lacks the wanted language,
+    // so the normal (already multi-audio) path is untouched and costs
+    // nothing extra.
+    // ---------------------------------------------------------------
+    const wantLang = (localStorage.getItem('sv-audio-lang') || (state.uiLang === 'hi' ? 'hi' : '') || '').slice(0, 2);
+    const haveWanted = !wantLang || (data.audio || []).some((a) => String(a.code || '').slice(0, 2) === wantLang);
+    if (data.master && !haveWanted && (data.audio || []).length <= 1) {
+      try {
+        const alt = await fetch(`/api/anime/stream?id=${encodeURIComponent(id)}` +
+          `&source=${useAnilist ? 'anilist' : 'mal'}&ep=${encodeURIComponent(p.animeEpisode || 1)}` +
+          `&lang=${p.animeDub ? 'sub' : 'dub'}` +
+          `&title=${encodeURIComponent(p.title || '')}`, { headers: { Accept: 'application/json' } })
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (alt && alt.ok && alt.master && alt.master !== data.master) {
+          const remix = '/api/hls/remix?video=' + encodeURIComponent(data.master) +
+            '&audio=' + encodeURIComponent(alt.master) +
+            (wantLang ? '&lang=' + encodeURIComponent(wantLang) : '');
+          // Verify before committing: a broken remix must never replace a
+          // working stream.
+          const probe = await fetch(remix, { method: 'HEAD' }).catch(() => null);
+          if (probe && probe.ok) {
+            data.source = remix;
+            data.audio = (alt.audio || []).concat(data.audio || []);
+            data.remixed = true;
+          }
+        }
+      } catch (e) { /* remix is a bonus; never fatal */ }
+    }
+    if (!p.active || p.loadToken !== token || request !== nativeReqToken) return false;
+
+    // Attach through the shared routine so anime and movies get identical
+    // error recovery, subtitle wiring and control syncing.
+    const ok = await attachNativeStream({
+      token, request,
+      source: data.source,
+      provider: data.provider || '',
+      tracks: data.tracks || [],
+      intro: data.intro || null,
+    });
+    if (!ok) return false;
+
+    const multi = (p.nativeAudio || []).length > 1;
+    const extra = multi
+      ? ` · ${(p.nativeAudio || []).length} ${state.uiLang === 'hi' ? 'भाषाएँ' : 'languages'}`
+      : '';
+    toast(`${t('nativePlayer') || 'Direct stream'} · ${data.provider}${extra}`);
+    return true;
+  }
+
+  /* ============================================================
+     DIRECT (NON-IFRAME) MOVIE / TV PLAYBACK
+     Anime has been able to play in our own <video> element for a while; every
+     movie and episode still went through a third-party iframe, which is why
+     the quality picker, the audio-language picker and the speed control could
+     never really do anything for them. /api/movie/stream resolves the same
+     providers server-side and hands back a plain HLS master, so those controls
+     become real here too.
+
+     Returns false whenever anything is missing or slow, and the caller then
+     loads the iframe exactly as before — direct playback can only add, never
+     take away.
+     ============================================================ */
+  async function tryNativeMovieStream(token, showLoad) {
+    const p = state.player;
+    if (!p.tmdbId || (p.media !== 'movie' && p.media !== 'tv')) return false;
+    if (p.directOff) return false;
+
+    const request = ++nativeReqToken;
+    if (showLoad) showPlayerLoading(t('nativePlayer') || 'Direct stream');
+
+    const details = p.details || {};
+    const wantLang = String(p.audioLang || '').slice(0, 2);
+    const query = new URLSearchParams({
+      tmdb: String(p.tmdbId),
+      type: p.media === 'tv' ? 'tv' : 'movie',
+      title: String(details.title || details.name || p.title || '').slice(0, 120),
+      year: String(details.release_date || details.first_air_date || '').slice(0, 4),
+      season: String(p.season || 1),
+      ep: String(p.episode || 1),
+    });
+    const imdb = String(details.imdb_id || (details.external_ids && details.external_ids.imdb_id) || '');
+    if (/^tt\d{5,10}$/.test(imdb)) query.set('imdb', imdb);
+    if (wantLang) query.set('lang', wantLang);
+
+    let data;
+    try {
+      const response = await fetch(`/api/movie/stream?${query}`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) return false;
+      data = await response.json();
+    } catch (e) { return false; }
+    if (!data || !data.ok || !data.source) return false;
+    if (!p.active || p.loadToken !== token || request !== nativeReqToken) return false;
+
+    /* Remember every language this title resolved to so the audio menu can
+       offer them, and honour the viewer's standing preference: if they asked
+       for Hindi and a Hindi stream came back, start on it. */
+    p.directStreams = Array.isArray(data.streams) ? data.streams : [];
+    p.directSubtitles = Array.isArray(data.subtitles) ? data.subtitles : [];
+    let chosen = p.directStreams[0] || { source: data.source, master: data.master, provider: data.provider, qualities: data.qualities };
+    if (wantLang) {
+      const match = p.directStreams.find((s) => String(s.language || '').slice(0, 2) === wantLang);
+      if (match) chosen = match;
+    }
+
+    const ok = await attachNativeStream({
+      token, request,
+      source: chosen.source,
+      provider: chosen.provider || data.provider || '',
+      tracks: p.directSubtitles,
+    });
+    if (!ok) return false;
+
+    p.directActive = true;
+    p.directLang = String(chosen.language || '');
+    syncDirectLanguageOptions();
+    syncDirectToggle();
+
+    const langCount = (data.languages || []).length;
+    const extra = langCount > 1
+      ? ` · ${langCount} ${state.uiLang === 'hi' ? 'भाषाएँ' : 'languages'}`
+      : '';
+    toast(`${t('nativePlayer') || 'Direct stream'} · ${chosen.provider || ''}${extra}`);
+    return true;
+  }
+
+  /* Attach an already-resolved manifest to the <video> element. Shared by the
+     anime and movie paths so both get identical error recovery, subtitle
+     handling and control wiring. */
+  async function attachNativeStream({ token, request, source, provider, tracks = [], intro = null }) {
+    const p = state.player;
     let Hls;
     try { Hls = await ensureHls(); } catch (e) { return false; }
     if (!p.active || p.loadToken !== token || request !== nativeReqToken) return false;
@@ -2086,14 +2303,15 @@
     destroyNativePlayer();
     showNativePlayer();
 
-    // Subtitle tracks ride along as real <track> elements.
-    (data.tracks || []).forEach((track, index) => {
+    (tracks || []).forEach((track, index) => {
       const el = document.createElement('track');
-      el.kind = 'subtitles'; el.label = track.label || `Track ${index + 1}`;
-      el.src = track.file; if (track.default) el.default = true;
+      el.kind = 'subtitles';
+      el.label = track.label || `Track ${index + 1}`;
+      el.src = track.file;
+      if (track.default) el.default = true;
       video.appendChild(el);
     });
-    p.nativeSkip = data.intro || null;
+    p.nativeSkip = intro || null;
     video.playbackRate = Number(p.speed) || 1;
 
     const started = await new Promise((resolve) => {
@@ -2116,14 +2334,10 @@
           syncNativeAudioTracks();
           finish(true);
         });
-        // Some masters expose their audio group slightly after the manifest.
         if (Hls.Events.AUDIO_TRACKS_UPDATED) {
           nativeHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => syncNativeAudioTracks());
         }
         nativeHls.on(Hls.Events.LEVEL_SWITCHED, () => updateNativeQualityBadge());
-        // Recover from transient faults, but only a bounded number of times:
-        // an unbounded retry loop just stalls until the 15 s guard fires and
-        // silently dumps the user on an iframe with no explanation.
         let recoveries = 0;
         nativeHls.on(Hls.Events.ERROR, (evt, info) => {
           if (!info || !info.fatal) return;
@@ -2135,10 +2349,9 @@
           finish(false);
         });
         nativeHls.attachMedia(video);
-        nativeHls.loadSource(data.source);
+        nativeHls.loadSource(source);
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari plays HLS natively; levels are managed by the OS.
-        video.src = data.source;
+        video.src = source;
         video.addEventListener('loadedmetadata', () => finish(true), { once: true });
         video.addEventListener('error', () => finish(false), { once: true });
       } else finish(false);
@@ -2146,11 +2359,11 @@
 
     if (!started || !p.active || p.loadToken !== token || request !== nativeReqToken) {
       if (!started) showIframePlayer();
-      return started && p.active;
+      return false;
     }
 
-    syncNativeSubtitleOptions(data.tracks || []);
-    p.nativeProvider = data.provider || '';
+    syncNativeSubtitleOptions(tracks || []);
+    p.nativeProvider = provider || '';
     const multi = syncNativeAudioTracks();
     if (!multi) syncAnimeAudioControl();
     wireSkipIntro();
@@ -2158,10 +2371,94 @@
     try { await video.play(); } catch (e) { /* autoplay policy: user taps play */ }
     const badge = $('#plSourceName');
     if (badge) badge.textContent = '';
-    const extra = multi
-      ? ` · ${(p.nativeAudio || []).length} ${state.uiLang === 'hi' ? 'भाषाएँ' : 'languages'}`
-      : '';
-    toast(`${t('nativePlayer') || 'Direct stream'} · ${data.provider}${extra}`);
+    return true;
+  }
+
+  /* Fill the preferred-audio menu with the languages this title ACTUALLY
+     resolved to. Previously the menu listed TMDB's metadata languages, which
+     described the film rather than anything we could play — picking Hindi
+     changed nothing, which is precisely the complaint. Now each entry
+     corresponds to a stream we have verified, and choosing one switches to
+     it. */
+  function syncDirectLanguageOptions() {
+    const p = state.player;
+    const select = $('#pcLang');
+    if (!select) return;
+    const streams = p.directStreams || [];
+    if (!p.directActive || streams.length < 1) return;
+
+    /* Label by language where the provider told us one. Where it did not,
+       several streams would otherwise all read "Original audio" and look like
+       duplicates, so those are distinguished by quality and provider — which
+       is the real difference between them. */
+    const seen = new Set();
+    const items = [];
+    const untitled = streams.filter((s) => !String(s.language || '').trim()).length;
+    streams.forEach((s, index) => {
+      const code = String(s.language || '').slice(0, 2).toLowerCase();
+      if (code) {
+        if (seen.has(code)) return;
+        seen.add(code);
+        items.push({ value: `dir:${index}`, label: AUDIO_NAMES[code] || s.label || code.toUpperCase() });
+        return;
+      }
+      /* The provider does not tag its original track, but TMDB knows what
+         language the title was made in — and for a Hindi film that track IS
+         the Hindi one. Naming it is the difference between the viewer seeing
+         "Hindi" and concluding the feature is broken. */
+      const orig = String((p.details && p.details.original_language) || p.originalLanguage || '').slice(0, 2).toLowerCase();
+      const base = orig && AUDIO_NAMES[orig]
+        ? `${AUDIO_NAMES[orig]}${state.uiLang === 'hi' ? ' (मूल)' : ' (original)'}`
+        : (state.uiLang === 'hi' ? 'मूल ऑडियो' : 'Original audio');
+      const bits = [];
+      if (untitled > 1 && s.height) bits.push(`${s.height}p`);
+      if (untitled > 1 && s.provider) bits.push(String(s.provider).split(':').pop());
+      items.push({ value: `dir:${index}`, label: bits.length ? `${base} · ${bits.join(' ')}` : base });
+    });
+    if (!items.length) return;
+
+    setSelectOptions(select, items);
+    const current = streams.findIndex((s) => String(s.language || '') === String(p.directLang || ''));
+    select.value = `dir:${current >= 0 ? current : 0}`;
+    select.disabled = false;
+    select.title = state.uiLang === 'hi'
+      ? 'ये वही भाषाएँ हैं जो इस टाइटल के लिए सचमुच मिलीं।'
+      : 'These are the languages actually available for this title.';
+    renderPlayerLanguageOptions();
+  }
+
+  /* Switch the running title to another resolved language without leaving the
+     player: same position, same quality menu, just a different audio stream. */
+  async function applyDirectLanguage(value) {
+    const p = state.player;
+    const index = Number(String(value).slice(4));
+    const stream = (p.directStreams || [])[index];
+    if (!stream || !stream.source) return false;
+
+    const video = $('#playerVideo');
+    const resumeAt = video && Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    const wasPlaying = video && !video.paused;
+    const token = p.loadToken;
+    const request = ++nativeReqToken;
+
+    showPlayerLoading(t('nativePlayer') || 'Direct stream');
+    const ok = await attachNativeStream({
+      token, request,
+      source: stream.source,
+      provider: stream.provider || '',
+      tracks: p.directSubtitles || [],
+    });
+    if (!ok) { hidePlayerLoading(); return false; }
+
+    p.directLang = String(stream.language || '');
+    // Put the viewer back where they were rather than restarting the film.
+    if (resumeAt > 5 && video) {
+      const seek = () => { try { video.currentTime = resumeAt; } catch (e) {} };
+      if (video.readyState >= 1) seek();
+      else video.addEventListener('loadedmetadata', seek, { once: true });
+    }
+    if (wasPlaying && video) { try { await video.play(); } catch (e) {} }
+    syncDirectLanguageOptions();
     return true;
   }
 
@@ -2420,22 +2717,45 @@
       ? `${p.title} — S${String(p.season).padStart(2,'0')}E${String(p.episode).padStart(2,'0')}`
       : p.title;
     updatePrevNext();
-    if (p.source === AUTO_ID) {
-      p.autoIdx = 0;
-      trySourceAtIndex(0, token);
+    p.directActive = false;
+    p.directStreams = [];
+
+    // Iframe fallback, unchanged. Split out so the direct attempt can hand
+    // over to it from anywhere without duplicating the auto-rotation logic.
+    const loadIframe = () => {
+      if (!p.active || p.loadToken !== token) return;
+      p.directActive = false;
+      showIframePlayer();
+      syncDirectToggle();
+      if (p.source === AUTO_ID) {
+        p.autoIdx = 0;
+        trySourceAtIndex(0, token);
+        return;
+      }
+      const source = activeSource();
+      if (showLoad) showPlayerLoading(source.name);
+      setFrameSource(buildEmbedUrl(source), token).then((ok) => {
+        if (!p.active || p.loadToken !== token) return;
+        if (!ok) {
+          p.source = AUTO_ID;
+          renderSourceChips();
+          const nextToken = ++p.loadToken;
+          trySourceAtIndex(0, nextToken);
+        } else { hidePlayerLoading(); updateAudioTrackStatus(); schedulePlaybackSpeed(); }
+      });
+    };
+
+    /* Try direct playback first: it is the only mode where the quality,
+       language and speed controls genuinely apply. The moment it cannot
+       deliver, the iframe takes over exactly as it always did. */
+    if (p.directPreferred && p.source === AUTO_ID) {
+      tryNativeMovieStream(token, showLoad).then((ok) => {
+        if (ok || !p.active || p.loadToken !== token) return;
+        loadIframe();
+      }).catch(() => loadIframe());
       return;
     }
-    const source = activeSource();
-    if (showLoad) showPlayerLoading(source.name);
-    setFrameSource(buildEmbedUrl(source), token).then((ok) => {
-      if (!p.active || p.loadToken !== token) return;
-      if (!ok) {
-        p.source = AUTO_ID;
-        renderSourceChips();
-        const nextToken = ++p.loadToken;
-        trySourceAtIndex(0, nextToken);
-      } else { hidePlayerLoading(); updateAudioTrackStatus(); schedulePlaybackSpeed(); }
-    });
+    loadIframe();
   }
 
   function updatePrevNext() {
@@ -2482,6 +2802,16 @@
   function populateAudioLanguages(detail) {
     const select = $('#pcLang');
     if (!select) return;
+    // A direct stream has already filled this menu with languages it can
+    // really play; TMDB's metadata list would only overwrite them with
+    // options that do nothing.
+    if (state.player.directActive && (state.player.directStreams || []).length) {
+      state.player.originalLanguage = String(detail && detail.original_language || '').toLowerCase();
+      // Details can land after the stream did; relabel now that we know what
+      // the original-audio track actually is.
+      syncDirectLanguageOptions();
+      return;
+    }
     state.player.originalLanguage = String(detail && detail.original_language || '').toLowerCase();
     if (state.player.originalLanguage === 'hi' && !state.player.audioLang) {
       state.player.audioLang = 'hi';
@@ -2500,7 +2830,9 @@
     (detail && detail.spoken_languages || []).forEach((x) => add(x.iso_639_1, x.english_name || AUDIO_NAMES[x.iso_639_1]));
     add('hi', t('hindiPreferred'), true);
     add('en', 'English (when provider offers it)', true);
-    select.innerHTML = `<option value="">${esc(t('preferredAudioAuto'))}</option>` + found.map((x) => `<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('');
+    setSelectOptions(select, [{ value: '', label: t('preferredAudioAuto') }].concat(
+      found.map((x) => ({ value: x.code, label: x.label }))
+    ));
     const allowed = new Set(found.map((x) => x.code));
     if (!allowed.has(state.player.audioLang)) state.player.audioLang = '';
     select.value = state.player.audioLang;
@@ -2600,6 +2932,7 @@
     if ($('#pcSpeed')) $('#pcSpeed').value=String(p.speed||1); updateVoiceBoostButton();
     document.body.style.overflow = 'hidden';
     resetPlayerFeed();
+    syncControlBarHeight();
     $('#playerTitle').textContent = p.title;
     $$('.player-fallback, .pf-inline-retry').forEach((n) => n.remove());
     restoreEpisodePanel();
@@ -2675,6 +3008,7 @@
     }
 
     updatePrevNext();
+    syncDirectToggle();
     if (p.media === 'movie') await loadPlayerLanguages();
     loadStream(true);
     loadOfficialProviders();
@@ -2684,6 +3018,35 @@
     clearTimeout(p._muteTimer);
     p._muteTimer = setTimeout(showUnmutePrompt, 3500);
   }
+
+  // The pinned control bar wraps to two or three lines depending on how many
+  // controls a given source exposes and how wide the phone is. Measure it and
+  // publish the height so the video stage can reserve exactly that much room.
+  let pcBarRaf = 0;
+  function syncControlBarHeight() {
+    if (pcBarRaf) cancelAnimationFrame(pcBarRaf);
+    pcBarRaf = requestAnimationFrame(() => {
+      pcBarRaf = 0;
+      const row = document.querySelector('.pc-lang-row');
+      const modal = $('#playerModal');
+      if (!row || !modal || modal.classList.contains('hidden')) return;
+      if (document.fullscreenElement) {
+        modal.style.setProperty('--pc-bar-h', '0px');
+        return;
+      }
+      const h = Math.round(row.getBoundingClientRect().height);
+      if (h > 0) modal.style.setProperty('--pc-bar-h', h + 8 + 'px');
+    });
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    try {
+      const row = document.querySelector('.pc-lang-row');
+      if (row) new ResizeObserver(syncControlBarHeight).observe(row);
+    } catch (_) {}
+  }
+  window.addEventListener('resize', syncControlBarHeight, { passive: true });
+  window.addEventListener('orientationchange', syncControlBarHeight, { passive: true });
+  document.addEventListener('fullscreenchange', syncControlBarHeight);
 
   function resetPlayerFeed() {
     const feed = $('#playerFeed');
@@ -3152,17 +3515,71 @@
   // Language / audio selector
   $('#pcLang').value = state.player.audioLang || '';
   $('#pcLang').onchange = (event) => {
-    state.player.audioLang=event.target.value;
-    localStorage.setItem('sv-audio-lang',event.target.value);
+    const raw = event.target.value;
+    const selected = event.target.options[event.target.selectedIndex];
+
+    /* Direct playback: the menu lists languages we have actually resolved, so
+       switching swaps the audio stream in place instead of reloading the
+       title and hoping the provider honours a preference. */
+    if (String(raw).startsWith('dir:')) {
+      const stream = (state.player.directStreams || [])[Number(raw.slice(4))];
+      const code = stream ? String(stream.language || '') : '';
+      if (code) {
+        state.player.audioLang = code;
+        localStorage.setItem('sv-audio-lang', code);
+      }
+      renderPlayerLanguageOptions();
+      applyDirectLanguage(raw).then((ok) => {
+        if (ok) toast(t('audioPreference', { language: selected?.textContent || code.toUpperCase() }));
+        else toast(state.uiLang === 'hi' ? 'यह भाषा लोड नहीं हो सकी।' : 'That language could not be loaded.');
+      });
+      return;
+    }
+
+    state.player.audioLang=raw;
+    localStorage.setItem('sv-audio-lang',raw);
     renderPlayerLanguageOptions(); updateAudioTrackStatus(); renderSourceChips();
     if(state.player.media!=='anime'){
       // Re-run Auto ranking so Hindi originals prefer original-audio sources.
       state.player.autoIdx=0;
       loadStream(true);
     }
-    const selected=event.target.options[event.target.selectedIndex];
-    toast(event.target.value?t('audioPreference',{language:selected?.textContent||event.target.value.toUpperCase()}):t('audioDefault'));
+    toast(raw?t('audioPreference',{language:selected?.textContent||raw.toUpperCase()}):t('audioDefault'));
   };
+  /* Direct vs embedded playback. Direct is preferred because it is the only
+     mode where our own controls reach the video, but some titles resolve
+     nowhere and some viewers simply prefer the provider's player, so the
+     choice is theirs and it persists. */
+  const directToggle = $('#pcDirectToggle');
+  function syncDirectToggle() {
+    const btn = $('#pcDirectToggle');
+    if (!btn) return;
+    const p = state.player;
+    // Anime already has its own direct path and its own controls.
+    btn.style.display = (p.media === 'movie' || p.media === 'tv') ? '' : 'none';
+    const label = $('#pcDirectLabel');
+    if (label) label.textContent = p.directPreferred ? t('directMode') : t('embedMode');
+    btn.classList.toggle('active', !!p.directActive);
+    btn.setAttribute('aria-pressed', p.directPreferred ? 'true' : 'false');
+    btn.title = p.directActive
+      ? `${t('directModeHint')}${p.nativeProvider ? ' · ' + p.nativeProvider : ''}`
+      : t('directModeHint');
+  }
+  if (directToggle) {
+    directToggle.onclick = () => {
+      const p = state.player;
+      p.directPreferred = !p.directPreferred;
+      localStorage.setItem('sv-direct', p.directPreferred ? '1' : '0');
+      syncDirectToggle();
+      toast(p.directPreferred ? t('directOn') : t('directOff'));
+      if (p.active && p.media !== 'anime') {
+        destroyNativePlayer();
+        p.directActive = false;
+        loadStream(true);
+      }
+    };
+  }
+
   // Anime audio (SUB/DUB) — sits where "Preferred audio" is for movies/TV.
   const animeAudioSelect=$('#pcAnimeAudio');
   if(animeAudioSelect){
@@ -3605,11 +4022,13 @@
   function populateQualityLevels(hls) {
     const select = $('#liveQuality');
     const levels = hls.levels || [];
-    select.innerHTML = `<option value="-1">${state.uiLang==='hi'?'ऑटो':'Auto'}</option>` + levels.map((level, index) => {
-      const resolution = level.height ? level.height + 'p' : `${Math.round(level.bitrate/1000)} kbps`;
-      return `<option value="${index}">${resolution}</option>`;
-    }).join('');
-    select.value = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
+    setSelectOptions(select, [{ value: '-1', label: state.uiLang==='hi'?'ऑटो':'Auto' }].concat(
+      levels.map((level, index) => ({
+        value: String(index),
+        label: level.height ? level.height + 'p' : `${Math.round(level.bitrate/1000)} kbps`,
+      }))
+    ));
+    if (!selectIsBusy(select)) select.value = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
     select.onchange = () => { hls.currentLevel = parseInt(select.value,10); };
   }
   function destroyLive() {

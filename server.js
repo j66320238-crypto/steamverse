@@ -13,8 +13,9 @@ const zlib = require('zlib');
 const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
+const { extractMovieStreams } = require('./movie-extract');
 
-const VERSION = '12.6.0';
+const VERSION = '12.9.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -738,6 +739,10 @@ async function awResolveEpisode(title, season, ep) {
       provider: 'animeworld',
       site, slug, season: s, episode: ep,
       source: `/api/hls?url=${encodeURIComponent(source)}`,
+      // Raw master, needed by /api/hls/remix when the user wants this
+      // provider's audio grafted onto another provider's video. It is a
+      // short-lived signed URL, so it is only ever used immediately.
+      master: source,
       audio, qualities,
       multiAudio: audio.length > 1,
     };
@@ -1127,6 +1132,80 @@ const routes = {
     return { ok: false, error: lastError, source: null, tracks: [] };
     }, false);
   },
+
+  /* Direct (non-iframe) playback for movies and TV.
+   *
+   * The iframe sources still exist and are still the fallback; this route is
+   * what lets a title play in our own <video> element instead, which is the
+   * only way the quality picker, the audio-language picker and the speed
+   * control can apply to movies the way they already do for anime.
+   *
+   * Never throws for "not found": a false `ok` simply means the client keeps
+   * the iframe it would have used anyway. */
+  '/api/movie/stream': async (q) => {
+    const tmdbId = positiveInt(q.get('tmdb') || q.get('id'), 'tmdb id');
+    const kind = q.get('type') === 'tv' ? 'tv' : 'movie';
+    const season = Math.max(1, Math.min(99, parseInt(q.get('season'), 10) || 1));
+    const episode = Math.max(1, Math.min(9999, parseInt(q.get('ep') || q.get('episode'), 10) || 1));
+    const title = String(q.get('title') || '').slice(0, 120);
+    const year = String(q.get('year') || '').slice(0, 4);
+    const imdbId = /^tt\d{5,10}$/.test(String(q.get('imdb') || '')) ? String(q.get('imdb')) : '';
+    const wantLang = String(q.get('lang') || '').toLowerCase().slice(0, 3).replace(/[^a-z]/g, '');
+
+    const cacheKey = `moviestream:${kind}:${tmdbId}:${season}:${episode}:${wantLang}`;
+    // Short TTL: these are signed, expiring CDN URLs. Long enough to spare the
+    // upstream a burst when a viewer flips between languages, short enough
+    // that nothing handed out has gone stale.
+    return cached(cacheKey, 4 * 60 * 1000, async () => {
+      let res;
+      try {
+        res = await extractMovieStreams({ kind, tmdbId, imdbId, title, year, season, episode, wantLang });
+      } catch (e) {
+        return { ok: false, error: String(e && e.message || e).slice(0, 200), streams: [] };
+      }
+      if (!res.ok) return { ok: false, error: res.error || 'no direct stream', streams: [] };
+
+      const streams = res.streams.map((s) => ({
+        // Proxied, because these CDNs are hotlink-gated and the browser cannot
+        // set a cross-origin Referer.
+        source: `/api/hls?url=${encodeURIComponent(s.url)}`,
+        // Raw master, needed by /api/hls/remix to graft one provider's audio
+        // onto another's video. Short-lived, so only used immediately.
+        master: s.url,
+        language: s.language || '',
+        label: s.label || 'Original',
+        provider: s.provider,
+        height: s.height || 0,
+        qualities: Array.isArray(s.qualities) ? s.qualities : [],
+        multiQuality: (s.qualities || []).length > 1,
+      }));
+
+      const subtitles = (res.subtitles || []).map((t) => ({
+        file: `/api/hls?url=${encodeURIComponent(t.url)}`,
+        label: String(t.label || 'Subtitle'),
+        language: String(t.language || ''),
+        kind: 'captions',
+      }));
+
+      const languages = [...new Set(streams.map((s) => s.language).filter(Boolean))];
+      const primary = streams[0];
+      return {
+        ok: true,
+        type: kind,
+        // Flattened shape matching /api/anime/stream so the player can consume
+        // either without a second code path.
+        source: primary.source,
+        master: primary.master,
+        provider: primary.provider,
+        qualities: primary.qualities,
+        streams,
+        languages,
+        multiLanguage: languages.length > 1,
+        subtitles,
+      };
+    }, false);
+  },
+
   '/api/anime/details': (q) => {
     const id = positiveInt(q.get('id'), 'anime id');
     const source = q.get('source') === 'anilist' ? 'anilist' : 'mal';
@@ -1193,12 +1272,30 @@ const HLS_ALLOWED_SUFFIXES = [
   '.stackpathdns.com', '.wizdeo.io', '.luxeat.lu', '.cloudycdn.services',
   '.intoday.in', '.akamaihd.net', '.trt.com.tr', '.wiseplayout.com',
   '.shemaroo.com', '.thelegitpro.in',
-  // AnimeWorld/Zephyrix segment CDNs. These are numbered and rotate
-  // (s11.zn-grid05.top today), so match by suffix, not by exact host.
-  '.zn-grid05.top', '.zn-grid04.top', '.zn-grid03.top', '.zn-grid02.top',
-  '.zn-grid01.top', '.zn-grid.top', '.zephyrix.top', '.zephyrflick.top',
+  // AnimeWorld/Zephyrix manifest hosts.
+  '.zephyrix.top', '.zephyrflick.top',
   ...String(process.env.HLS_ALLOWED_SUFFIXES || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean),
 ];
+/* The AnimeWorld/Zephyrix segment CDNs are numbered and rotate without
+   warning: s11.zn-grid05.top was serving yesterday, s11.zn-grid06.top today.
+   Hard-coding each number silently 403'd every video segment the moment the
+   CDN rolled over (round-8 bug: the audio played but no picture). Match the
+   whole family with a pattern instead. */
+const HLS_ALLOWED_PATTERNS = [
+  /(^|\.)zn-grid\d*\.top$/,
+  /(^|\.)zephyrix\.top$/,
+  /(^|\.)zephyrflick\.top$/,
+  /* Movie/TV direct-stream CDNs (/api/movie/stream). Like the anime CDNs
+     above these are numbered and rotate, so match the family. */
+  /(^|\.)peakstorm\.top$/,
+  /(^|\.)primecrown\.top$/,
+  /(^|\.)1shows\.app$/,
+  /(^|\.)vimeos\.zip$/,
+  /(^|\.)dolphin-d\d*\.workers\.dev$/,
+  /(^|\.)slast\d*did\.com$/,
+  /(^|\.)vdrk\.site$/,
+];
+
 const HLS_ALLOWED_EXACT = new Set([
   '103.225.189.136',
   // Anime stream hosts (native player path). These serve the m3u8/vtt returned
@@ -1222,12 +1319,24 @@ const HLS_REFERER_BY_HOST = [
   // Segment CDNs used by the above (zn-grid05.top and friends).
   [/(^|\.)zn-grid\d*\.top$/, 'https://play.zephyrix.top/'],
   [/(^|\.)watchanimeworld\.(top|net|in)$/, 'https://watchanimeworld.top/'],
+  /* Movie/TV direct streams. Both extractors' CDNs check the referer of the
+     player that issued the signed URL, not of our site. */
+  [/(^|\.)peakstorm\.top$/, 'https://player.videasy.to/'],
+  [/(^|\.)primecrown\.top$/, 'https://player.videasy.to/'],
+  [/(^|\.)vimeos\.zip$/, 'https://player.videasy.to/'],
+  [/(^|\.)1shows\.app$/, 'https://vidrock.net/'],
+  [/(^|\.)dolphin-d\d*\.workers\.dev$/, 'https://vidrock.net/'],
+  [/(^|\.)slast\d*did\.com$/, 'https://vidrock.net/'],
+  [/(^|\.)vdrk\.site$/, 'https://vidrock.net/'],
 ];
 
 function hlsRefererFor(hostname) {
   const host = String(hostname || '').toLowerCase();
   const hit = HLS_REFERER_BY_HOST.find(([re]) => re.test(host));
-  return hit ? hit[1] : '';
+  if (hit) return hit[1];
+  // Segment hosts discovered from a trusted manifest inherit its referer.
+  const derived = typeof derivedHlsEntry === 'function' ? derivedHlsEntry(host) : null;
+  return derived && derived.referer ? derived.referer : '';
 }
 
 let hlsInFlight = 0;
@@ -1251,9 +1360,50 @@ function isPrivateAddress(address) {
   return true;
 }
 
+/* These CDNs hand out a different hostname on almost every request
+   (peakstorm.top -> primecrown.top -> polarcandy.top ...), so a hand-written
+   allowlist goes stale within days and playback dies with a 403 from our own
+   proxy. Instead we trust transitively: if a manifest we already allowed
+   points at a segment host, that host is part of the same stream and is
+   allowed too — for a while. The entry is short-lived and remembers which
+   referer the parent needed, so hotlink gating keeps working on the segments.
+
+   This grants no new reach: an attacker cannot get a host in here without
+   first serving a playlist from a host we already trust. */
+const DERIVED_HLS_HOSTS = new Map();
+const DERIVED_HLS_TTL = 6 * 60 * 60 * 1000;
+const DERIVED_HLS_MAX = 500;
+
+function trustDerivedHlsHost(hostname, parentUrl) {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (!host || allowedHlsHost(host)) return;
+  let referer = '';
+  try {
+    const parent = new URL(String(parentUrl));
+    // Inherit the parent's referer requirement; the segments of a hotlink-
+    // gated manifest are gated the same way.
+    referer = hlsRefererFor(parent.hostname) || `${parent.protocol}//${parent.host}/`;
+  } catch (e) { /* keep the default */ }
+  if (DERIVED_HLS_HOSTS.size >= DERIVED_HLS_MAX) {
+    const oldest = DERIVED_HLS_HOSTS.keys().next().value;
+    if (oldest) DERIVED_HLS_HOSTS.delete(oldest);
+  }
+  DERIVED_HLS_HOSTS.set(host, { expires: Date.now() + DERIVED_HLS_TTL, referer });
+}
+
+function derivedHlsEntry(host) {
+  const hit = DERIVED_HLS_HOSTS.get(host);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) { DERIVED_HLS_HOSTS.delete(host); return null; }
+  return hit;
+}
+
 function allowedHlsHost(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
-  return HLS_ALLOWED_EXACT.has(host) || HLS_ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  return HLS_ALLOWED_EXACT.has(host)
+    || HLS_ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix))
+    || HLS_ALLOWED_PATTERNS.some((re) => re.test(host))
+    || !!derivedHlsEntry(host);
 }
 
 async function validateHlsUrl(value) {
@@ -1312,6 +1462,7 @@ function proxyHlsUrl(value, base) {
   try {
     const absolute = new URL(value, base);
     if (!['http:', 'https:'].includes(absolute.protocol)) return value;
+    trustDerivedHlsHost(absolute.hostname, base);
     return '/api/hls?url=' + encodeURIComponent(absolute.toString());
   } catch (e) { return value; }
 }
@@ -1327,6 +1478,166 @@ function rewriteM3u8(text, base) {
       return `URI=${quote}${proxyHlsUrl(value, base)}${quote}`;
     });
   }).join('\n');
+}
+
+/* ---------------------------------------------------------------------------
+   CROSS-PROVIDER REMIX  (/api/hls/remix)
+   ---------------------------------------------------------------------------
+   The user's complaint: "the 4K source has bad quality but has Hindi, the
+   other source has good quality" -> they want audio from one provider and
+   video from the other.
+
+   With sealed iframe players (Videasy, VidFast, APIPlayer...) that is
+   impossible; the page is a black box and we can never reach its audio.
+   But at the HLS level it IS possible, because a master playlist keeps
+   video renditions and audio renditions as SEPARATE entries linked by a
+   GROUP-ID. So we can:
+
+     - fetch master A (the good-video provider) and master B (the has-Hindi one)
+     - keep A's #EXT-X-STREAM-INF video renditions
+     - graft B's #EXT-X-MEDIA:TYPE=AUDIO rows into A's audio group
+     - hand the browser one synthetic master
+
+   hls.js then plays A's video with B's audio track, switchable live.
+   Everything is proxied through /api/hls so referer gating still works.
+
+   Caveat we surface honestly to the UI: the two masters must be the same
+   cut of the same episode or the audio drifts. We only offer the remix when
+   both sides report a comparable duration.
+--------------------------------------------------------------------------- */
+async function fetchMasterText(url, req) {
+  const { response, finalUrl } = await fetchHlsUpstream(url, req);
+  if (!response.ok) throw httpError(502, 'remix upstream failed');
+  const raw = Buffer.from(await response.arrayBuffer());
+  if (raw.length > 2 * 1024 * 1024) throw httpError(502, 'remix manifest too large');
+  return { text: raw.toString('utf8'), finalUrl };
+}
+
+/* Split a master into its audio rows, its video rows, and everything else. */
+function splitMaster(text, base) {
+  const lines = String(text).split(/\r?\n/);
+  const audio = [];
+  const video = [];   // { inf, uri }
+  const other = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
+      audio.push(line.replace(/URI=("([^"]+)"|'([^']+)')/i, (whole, q, dbl, sgl) => {
+        const value = dbl || sgl || '';
+        return 'URI="' + proxyHlsUrl(value, base) + '"';
+      }));
+    } else if (line.startsWith('#EXT-X-STREAM-INF')) {
+      // The URI is on the following non-comment line.
+      let j = i + 1;
+      while (j < lines.length && (!lines[j] || lines[j].startsWith('#'))) j++;
+      if (j < lines.length) {
+        video.push({ inf: line, uri: proxyHlsUrl(lines[j].trim(), base) });
+        i = j;
+      }
+    } else if (line.startsWith('#EXT-X-MEDIA:TYPE=SUBTITLES')) {
+      other.push(line.replace(/URI=("([^"]+)"|'([^']+)')/i, (whole, q, dbl, sgl) => {
+        const value = dbl || sgl || '';
+        return 'URI="' + proxyHlsUrl(value, base) + '"';
+      }));
+    }
+  }
+  return { audio, video, other };
+}
+
+function mediaAttr(line, key) {
+  const m = line.match(new RegExp(key + '="([^"]*)"', 'i'));
+  return m ? m[1] : '';
+}
+
+/* Force every audio row into one group id and make exactly one DEFAULT. */
+function normaliseAudioRows(rows, groupId, preferLang) {
+  const want = String(preferLang || '').toLowerCase().slice(0, 3);
+  let defaultIndex = -1;
+  const cleaned = rows.map((row, index) => {
+    let out = row
+      .replace(/GROUP-ID="[^"]*"/i, 'GROUP-ID="' + groupId + '"')
+      .replace(/DEFAULT=(YES|NO)/i, 'DEFAULT=NO')
+      .replace(/AUTOSELECT=(YES|NO)/i, 'AUTOSELECT=YES');
+    if (!/GROUP-ID=/i.test(out)) out = out.replace('#EXT-X-MEDIA:', '#EXT-X-MEDIA:GROUP-ID="' + groupId + '",');
+    if (!/DEFAULT=/i.test(out)) out += ',DEFAULT=NO';
+    const lang = mediaAttr(out, 'LANGUAGE').toLowerCase();
+    if (want && defaultIndex < 0 && (lang === want || lang.startsWith(want.slice(0, 2)))) defaultIndex = index;
+    return out;
+  });
+  if (defaultIndex < 0 && cleaned.length) defaultIndex = 0;
+  if (defaultIndex >= 0) cleaned[defaultIndex] = cleaned[defaultIndex].replace(/DEFAULT=NO/i, 'DEFAULT=YES');
+  return cleaned;
+}
+
+/* De-duplicate audio rows by LANGUAGE+NAME so a remix does not show
+   "Hindi" three times when both providers carry it. */
+function dedupeAudioRows(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const key = (mediaAttr(row, 'LANGUAGE') + '|' + mediaAttr(row, 'NAME')).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+async function hlsRemix(req, res, u) {
+  const videoUrl = u.searchParams.get('video');
+  const audioUrl = u.searchParams.get('audio');
+  const preferLang = u.searchParams.get('lang') || '';
+  if (!videoUrl || !audioUrl || videoUrl.length > 3000 || audioUrl.length > 3000) {
+    return sendJson(res, 400, { error: 'video and audio master urls required' }, req.headers);
+  }
+  if (hlsInFlight >= 40) {
+    return sendJson(res, 503, { error: 'stream proxy busy' }, req.headers, { headers: { 'Retry-After': '3' } });
+  }
+  hlsInFlight++;
+  try {
+    const [videoSide, audioSide] = await Promise.all([
+      fetchMasterText(videoUrl, req),
+      fetchMasterText(audioUrl, req),
+    ]);
+    const vParts = splitMaster(videoSide.text, videoSide.finalUrl);
+    const aParts = splitMaster(audioSide.text, audioSide.finalUrl);
+    if (!vParts.video.length) throw httpError(502, 'video master has no renditions');
+
+    const GROUP = 'sv-mix';
+    // Audio from the donor first (that is the whole point), then whatever the
+    // video side already had, so the user never LOSES a language by remixing.
+    const rows = normaliseAudioRows(
+      dedupeAudioRows(aParts.audio.concat(vParts.audio)), GROUP, preferLang,
+    );
+    if (!rows.length) throw httpError(502, 'audio master exposes no selectable tracks');
+
+    const out = ['#EXTM3U', '#EXT-X-VERSION:4'];
+    rows.forEach((row) => out.push(row));
+    vParts.other.forEach((row) => out.push(row));
+    aParts.other.forEach((row) => out.push(row));
+    vParts.video.forEach((entry) => {
+      // Point every video rendition at our merged audio group and strip any
+      // audio codec the original advertised for its own group.
+      let inf = entry.inf.replace(/,?AUDIO="[^"]*"/i, '');
+      inf += ',AUDIO="' + GROUP + '"';
+      out.push(inf);
+      out.push(entry.uri);
+    });
+    const body = Buffer.from(out.join('\n') + '\n');
+    stats.hlsBytes += body.length;
+    res.writeHead(200, securityHeaders({
+      'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Length': String(body.length),
+    }));
+    if (req.method === 'HEAD') return res.end();
+    return res.end(body);
+  } catch (err) {
+    const code = err && err.statusCode ? err.statusCode : 502;
+    return sendJson(res, code, { error: (err && err.message) || 'remix failed' }, req.headers);
+  } finally {
+    hlsInFlight--;
+  }
 }
 
 async function hlsProxy(req, res, u) {
@@ -1578,6 +1889,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, securityHeaders({ Allow: 'GET, HEAD, OPTIONS', 'Cache-Control': 'no-store' }));
       return res.end();
+    }
+
+    if (pathname === '/api/hls/remix') {
+      const retryAfter = rateLimit(req, 'hls');
+      if (retryAfter) return sendJson(res, 429, { error: 'stream request limit reached' }, req.headers, { headers: { 'Retry-After': String(retryAfter) } });
+      return hlsRemix(req, res, u);
     }
 
     if (pathname === '/api/hls') {
