@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v10.0 — backend (Node.js, ZERO npm dependencies)
+   StreamVerse v11.0 — backend (Node.js, ZERO npm dependencies)
    Primary: TMDB (movies/TV), AniList (anime)
    Backup : Cinemeta (movies/TV), Jikan (anime), ipapi.co (geo)
    + stale-if-error cache, gzip/br compression, security headers
@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
 
-const VERSION = '10.0.0';
+const VERSION = '11.0.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -249,6 +249,19 @@ const AL_VIDEO = `query ($id: Int, $idMal: Int) {
     trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
   }
 }`;
+const AL_RECOMMENDATIONS = `query ($id: Int, $idMal: Int) {
+  Media(id: $id, idMal: $idMal, type: ANIME) {
+    recommendations(page: 1, perPage: 24, sort: [RATING_DESC]) {
+      nodes {
+        rating
+        mediaRecommendation {
+          id idMal title { romaji english native } coverImage { extraLarge large }
+          averageScore seasonYear startDate { year } episodes status format genres siteUrl
+        }
+      }
+    }
+  }
+}`;
 
 function animeVars(id, source) {
   const n = Number(id);
@@ -477,6 +490,69 @@ function regionOf(value) {
   return /^[A-Z]{2}$/.test(region) ? region : 'IN';
 }
 
+/* ---------------- smart search intent parser ---------------- */
+const SMART_GENRES = [
+  { key: 'romantic-comedy', label: 'Romantic Comedy', aliases: ['romantic comedy', 'rom com', 'रोमांटिक कॉमेडी'], movie: '35,10749', tv: '35,10749', anime: 4 },
+  { key: 'comedy', label: 'Comedy', aliases: ['comedy', 'comedies', 'funny', 'कॉमेडी', 'हास्य', 'mazedar', 'मजेदार'], movie: '35', tv: '35', anime: 4 },
+  { key: 'action', label: 'Action', aliases: ['action', 'एक्शन', 'मारधाड़'], movie: '28', tv: '10759', anime: 1 },
+  { key: 'romance', label: 'Romance', aliases: ['romance', 'romantic', 'love story', 'रोमांस', 'रोमांटिक', 'प्यार'], movie: '10749', tv: '10749', anime: 22 },
+  { key: 'horror', label: 'Horror', aliases: ['horror', 'scary', 'ghost', 'हॉरर', 'डरावनी', 'भूत'], movie: '27', tv: '10765', tvKeywords: '6152|3358|162846', anime: 14 },
+  { key: 'thriller', label: 'Thriller', aliases: ['thriller', 'suspense', 'थ्रिलर', 'सस्पेंस'], movie: '53', tv: '9648', anime: 41 },
+  { key: 'animation', label: 'Animation', aliases: ['animation', 'animated', 'cartoon', 'कार्टून', 'एनिमेशन'], movie: '16', tv: '16', anime: 1 },
+  { key: 'documentary', label: 'Documentary', aliases: ['documentary', 'docs', 'डॉक्यूमेंट्री'], movie: '99', tv: '99', anime: null },
+  { key: 'crime', label: 'Crime', aliases: ['crime', 'gangster', 'क्राइम', 'अपराध'], movie: '80', tv: '80', anime: 7 },
+  { key: 'family', label: 'Family', aliases: ['family', 'kids', 'परिवार', 'बच्चों'], movie: '10751', tv: '10751', anime: null },
+  { key: 'fantasy', label: 'Fantasy', aliases: ['fantasy', 'magic', 'फैंटेसी', 'जादू'], movie: '14', tv: '10765', anime: 10 },
+  { key: 'scifi', label: 'Sci-Fi', aliases: ['sci fi', 'sci-fi', 'science fiction', 'स्पेस', 'विज्ञान कथा'], movie: '878', tv: '10765', anime: 24 },
+  { key: 'adventure', label: 'Adventure', aliases: ['adventure', 'एडवेंचर', 'रोमांच'], movie: '12', tv: '10759', anime: 2 },
+  { key: 'mystery', label: 'Mystery', aliases: ['mystery', 'detective', 'मिस्ट्री', 'रहस्य'], movie: '9648', tv: '9648', anime: 7 },
+  { key: 'drama', label: 'Drama', aliases: ['drama', 'ड्रामा', 'नाटक'], movie: '18', tv: '18', anime: 8 },
+  { key: 'war', label: 'War', aliases: ['war movie', 'war', 'युद्ध'], movie: '10752', tv: '10768', anime: null },
+  { key: 'music', label: 'Music', aliases: ['music', 'musical', 'संगीत', 'म्यूजिकल'], movie: '10402', tv: '10764', anime: 19 },
+];
+const SMART_LANGUAGES = [
+  { code: 'hi', label: 'Hindi', aliases: ['hindi', 'bollywood', 'हिन्दी', 'हिंदी'] },
+  { code: 'ta', label: 'Tamil', aliases: ['tamil', 'तमिल'] },
+  { code: 'te', label: 'Telugu', aliases: ['telugu', 'तेलुगु'] },
+  { code: 'ml', label: 'Malayalam', aliases: ['malayalam', 'मलयालम'] },
+  { code: 'kn', label: 'Kannada', aliases: ['kannada', 'कन्नड़'] },
+  { code: 'ko', label: 'Korean', aliases: ['korean', 'k drama', 'k-drama', 'कोरियन'] },
+  { code: 'ja', label: 'Japanese', aliases: ['japanese', 'जापानी'] },
+];
+
+function normaliseIntentText(value) {
+  return String(value || '').toLowerCase().normalize('NFKD')
+    .replace(/[\p{M}]/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim().replace(/\s+/g, ' ');
+}
+function hasAlias(text, alias) {
+  const value = normaliseIntentText(alias);
+  return (` ${text} `).includes(` ${value} `);
+}
+function parseSmartSearch(value) {
+  const text = normaliseIntentText(value);
+  const genre = SMART_GENRES.find((item) => item.aliases.some((alias) => hasAlias(text, alias))) || null;
+  let language = SMART_LANGUAGES.find((item) => item.aliases.some((alias) => hasAlias(text, alias))) || null;
+  if (!language && (hasAlias(text, 'south indian') || hasAlias(text, 'south movie') || hasAlias(text, 'साउथ'))) {
+    language = { code: 'te|ta|ml|kn', label: 'South Indian' };
+  }
+  let media = 'all';
+  if (['anime', 'ऐनिमे', 'एनीमे'].some((alias) => hasAlias(text, alias))) media = 'anime';
+  else if (['movie', 'movies', 'film', 'films', 'फिल्म', 'फिल्में'].some((alias) => hasAlias(text, alias))) media = 'movie';
+  else if (['tv', 'show', 'shows', 'series', 'सीरीज', 'शो'].some((alias) => hasAlias(text, alias))) media = 'tv';
+  let sort = 'popularity.desc';
+  if (['top rated', 'best', 'highest rated', 'टॉप', 'सबसे अच्छा'].some((alias) => hasAlias(text, alias))) sort = 'vote_average.desc';
+  else if (['latest', 'new', 'recent', 'नया', 'नई', 'लेटेस्ट'].some((alias) => hasAlias(text, alias))) sort = 'date.desc';
+  const yearMatch = text.match(/\b(19\d{2}|20\d{2})\b/);
+  const smart = Boolean(genre || language || media !== 'all' || sort !== 'popularity.desc' || yearMatch);
+  return {
+    smart, genre, language, media, sort,
+    year: yearMatch ? yearMatch[1] : '',
+    label: [language && language.label, genre && genre.label, media === 'anime' ? 'Anime' : ''].filter(Boolean).join(' · ') || 'Smart results',
+  };
+}
+
 /* ---------------- lightweight per-IP limits ---------------- */
 const rateBuckets = new Map();
 function rateLimit(req, kind) {
@@ -585,6 +661,12 @@ const routes = {
   '/api/movie/popular': (q) => withBackup(
     () => tmdb('/movie/popular', { language: langOf(q) }),
     () => cinemetaList('movie'), 'cinemeta'),
+  '/api/movie/hindi': (q) => withBackup(
+    () => tmdb('/discover/movie', {
+      with_original_language: 'hi', sort_by: 'popularity.desc',
+      'vote_count.gte': '20', page: pageOf(q), language: langOf(q), include_adult: 'false',
+    }, 30 * 60 * 1000),
+    () => cinemetaList('movie'), 'cinemeta'),
   '/api/movie/top_rated': (q) => withBackup(
     () => tmdb('/movie/top_rated', { language: langOf(q) }),
     () => cinemetaList('movie'), 'cinemeta'),
@@ -602,6 +684,68 @@ const routes = {
     () => tmdb('/tv/top_rated', { language: langOf(q) }),
     () => cinemetaList('series'), 'cinemeta'),
 
+  '/api/search/smart': async (q) => {
+    const search = queryOf(q);
+    const page = pageOf(q);
+    const intent = parseSmartSearch(search);
+    if (!intent.smart) {
+      return withBackup(
+        () => tmdb('/search/multi', { query: search, include_adult: 'false', page, language: langOf(q) }, 10 * 60 * 1000)
+          .then((data) => ({ ...data, smart: false, intent: null })),
+        async () => {
+          const [movies, series] = await Promise.all([cinemetaList('movie', search), cinemetaList('series', search)]);
+          return { results: [...movies.results.slice(0, 12), ...series.results.slice(0, 8)], smart: false, intent: null };
+        }, 'cinemeta');
+    }
+
+    const voteFloor = intent.sort === 'vote_average.desc' ? '200' : intent.sort === 'date.desc' ? '5' : '35';
+    const common = {
+      include_adult: 'false', page, language: langOf(q),
+      'vote_count.gte': voteFloor,
+      ...(intent.language ? { with_original_language: intent.language.code } : {}),
+    };
+    const jobs = [];
+    if (intent.media !== 'tv' && intent.media !== 'anime') {
+      jobs.push(Promise.resolve().then(() => tmdb('/discover/movie', {
+        ...common,
+        ...(intent.genre && intent.genre.movie ? { with_genres: intent.genre.movie } : {}),
+        ...(intent.year ? { primary_release_year: intent.year } : {}),
+        sort_by: intent.sort === 'date.desc' ? 'primary_release_date.desc' : intent.sort,
+      }, 20 * 60 * 1000)).then((data) => ({ kind: 'movie', data })).catch(() => ({ kind: 'movie', data: { results: [] } })));
+    }
+    if (intent.media !== 'movie' && intent.media !== 'anime') {
+      jobs.push(Promise.resolve().then(() => tmdb('/discover/tv', {
+        ...common,
+        ...(intent.genre && intent.genre.tv ? { with_genres: intent.genre.tv } : {}),
+        ...(intent.genre && intent.genre.tvKeywords ? { with_keywords: intent.genre.tvKeywords } : {}),
+        ...(intent.year ? { first_air_date_year: intent.year } : {}),
+        sort_by: intent.sort === 'date.desc' ? 'first_air_date.desc' : intent.sort,
+      }, 20 * 60 * 1000)).then((data) => ({ kind: 'tv', data })).catch(() => ({ kind: 'tv', data: { results: [] } })));
+    }
+    const responses = await Promise.all(jobs);
+    const groups = responses.map(({ kind, data }) => (data.results || []).map((item) => ({ ...item, media_type: kind })));
+    const results = [];
+    const max = Math.max(0, ...groups.map((group) => group.length));
+    for (let index = 0; index < max; index++) {
+      for (const group of groups) if (group[index]) results.push(group[index]);
+    }
+    const cleanIntent = {
+      genre: intent.genre ? intent.genre.key : null,
+      genre_label: intent.genre ? intent.genre.label : null,
+      anime_genre_id: intent.genre ? intent.genre.anime : null,
+      language: intent.language ? intent.language.code : null,
+      language_label: intent.language ? intent.language.label : null,
+      media: intent.media,
+      sort: intent.sort,
+      year: intent.year || null,
+      label: intent.label,
+    };
+    return {
+      results: results.slice(0, 40),
+      page: Number(page), total_pages: Math.min(20, Math.max(1, ...responses.map((item) => item.data.total_pages || 1))),
+      smart: true, intent: cleanIntent,
+    };
+  },
   '/api/search': (q) => {
     const search = queryOf(q);
     const page = pageOf(q);
@@ -642,12 +786,40 @@ const routes = {
     const media = q.get('media');
     if (!['movie', 'tv'].includes(media)) throw httpError(400, 'invalid media');
     const id = mediaIdOf(q.get('id'));
-    const fetchList = (kind) => tmdb(`/${media}/${id}/${kind}`, { page: '1', language: langOf(q) }, 15 * 60 * 1000).catch(() => ({ results: [] }));
-    const [recommended, similar] = await Promise.all([fetchList('recommendations'), fetchList('similar')]);
-    const results = [...(recommended.results || []), ...(similar.results || [])]
-      .filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i)
-      .slice(0, 24);
-    return { results };
+    const locale = langOf(q);
+    return cached(`recommend:v2:${locale}:${media}:${id}`, 30 * 60 * 1000, async () => {
+      const detail = await tmdb(`/${media}/${id}`, {
+        language: locale,
+        append_to_response: 'recommendations,similar',
+      }, 30 * 60 * 1000);
+      const genreIds = (detail.genres || []).map((genre) => genre.id).filter(Boolean);
+      const origin = detail.original_language || '';
+      const discover = genreIds.length ? await tmdb(`/discover/${media}`, {
+        language: locale,
+        with_genres: genreIds.slice(0, 3).join('|'),
+        ...(origin ? { with_original_language: origin } : {}),
+        sort_by: 'popularity.desc',
+        'vote_count.gte': '30', page: '1', include_adult: 'false',
+      }, 30 * 60 * 1000).catch(() => ({ results: [] })) : { results: [] };
+
+      const ranked = new Map();
+      const add = (items, base, reason) => (items || []).forEach((item, index) => {
+        if (!item || String(item.id) === String(id)) return;
+        const overlap = (item.genre_ids || []).filter((genreId) => genreIds.includes(genreId)).length;
+        const languageBoost = origin && item.original_language === origin ? (origin === 'hi' ? 88 : 22) : 0;
+        const quality = Math.min(16, Number(item.vote_average || 0) * 1.4)
+          + Math.min(30, Math.log10(Number(item.vote_count || 0) + 1) * 8)
+          + Math.min(24, Math.log10(Number(item.popularity || 0) + 1) * 8);
+        const score = base - index * 0.7 + overlap * 7 + languageBoost + quality;
+        const old = ranked.get(item.id);
+        if (!old || score > old.score) ranked.set(item.id, { score, item: { ...item, media_type: media, recommendation_reason: reason } });
+      });
+      add(detail.recommendations && detail.recommendations.results, 104, 'Recommended for this title');
+      add(detail.similar && detail.similar.results, 76, 'Similar story and genres');
+      add(discover.results, 72, origin === 'hi' ? 'More Hindi titles in these genres' : 'Popular in the same genres');
+      const results = [...ranked.values()].sort((a, b) => b.score - a.score).map((entry) => entry.item).slice(0, 30);
+      return { results, based_on: { genres: genreIds, original_language: origin } };
+    });
   },
 
   '/api/tv/season': async (q) => {
@@ -730,6 +902,29 @@ const routes = {
     if (source === 'anilist') return primary();
     return withBackup(primary, () => jikan(`/anime/${id}/full`), 'jikan');
   },
+  '/api/anime/recommendations': async (q) => {
+    const id = positiveInt(q.get('id'), 'anime id');
+    const source = q.get('source') === 'anilist' ? 'anilist' : 'mal';
+    try {
+      const data = await anilist(AL_RECOMMENDATIONS, animeVars(id, source));
+      const nodes = data && data.Media && data.Media.recommendations && data.Media.recommendations.nodes || [];
+      const results = nodes.filter((node) => node && node.mediaRecommendation).map((node) => ({
+        ...alMediaToJikan(node.mediaRecommendation),
+        recommendation_reason: node.rating > 0 ? 'Highly recommended by anime viewers' : 'Related anime',
+        recommendation_score: node.rating || 0,
+      }));
+      return { data: results };
+    } catch (e) {
+      if (source !== 'mal') return { data: [] };
+      try {
+        const result = await jikan(`/anime/${id}/recommendations`, 30 * 60 * 1000);
+        return { data: (result.data || []).slice(0, 24).map((item) => ({
+          ...(item.entry || {}), recommendation_reason: 'Recommended by anime viewers', recommendation_score: item.votes || 0,
+        })) };
+      } catch (backupError) { return { data: [] }; }
+    }
+  },
+
   '/api/anime/videos': (q) => {
     const id = positiveInt(q.get('id'), 'anime id');
     const source = q.get('source') === 'anilist' ? 'anilist' : 'mal';

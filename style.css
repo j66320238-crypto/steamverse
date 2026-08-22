@@ -1222,3 +1222,58 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
     backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
   }
 }
+
+/* ============================================================
+   StreamVerse v11 — smart search, Hindi audio request, speed UI
+   ============================================================ */
+.smart-search-banner{
+  display:flex;align-items:center;gap:12px;margin:13px 0 18px;padding:13px 15px;
+  border:1px solid rgba(34,211,238,.28);border-radius:13px;
+  background:linear-gradient(135deg,rgba(34,211,238,.10),rgba(139,92,246,.08));
+}
+.smart-search-icon{
+  width:34px;height:34px;display:grid;place-items:center;flex:0 0 34px;border-radius:10px;
+  color:#a5f3fc;background:rgba(34,211,238,.16);font-size:17px;
+}
+.smart-search-banner div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.smart-search-banner b{font-size:13.5px;color:var(--text)}
+.smart-search-banner small{font-size:11.5px;color:var(--muted);line-height:1.4}
+
+.audio-track-status{
+  min-height:34px;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;
+  color:rgba(255,255,255,.72);font-size:11.5px;font-weight:800;
+}
+.audio-track-status.confirmed{color:#86efac}
+.audio-track-status.requested{color:#fdba74}
+.try-hindi-source{
+  padding:6px 10px;border-radius:20px;border:1px solid rgba(249,115,22,.42);
+  color:#fed7aa;background:rgba(249,115,22,.13);font-size:10.5px;font-weight:900;
+}
+.try-hindi-source:hover{background:rgba(249,115,22,.27);border-color:#fb923c}
+#pcSpeed{min-width:104px}
+.pc-lang-controls{align-items:center}
+.pc-lang-controls .lc-ctl{flex-wrap:wrap}
+
+.rec-card{flex-basis:126px}
+.rec-type{
+  min-height:28px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;white-space:normal;
+}
+
+@media(max-width:760px){
+  .smart-search-banner{margin-top:10px;padding:11px 12px}
+  .smart-search-banner small{font-size:10.5px}
+  .pc-lang-controls{align-items:flex-end}
+  .audio-track-status{width:100%;padding:2px 0}
+  #pcSpeed{min-width:96px}
+  .rec-card{flex-basis:104px}
+}
+.card-audio-badge{
+  position:absolute;left:9px;top:37px;z-index:2;padding:3px 7px;border-radius:7px;
+  color:#d1fae5;background:rgba(5,46,22,.82);border:1px solid rgba(74,222,128,.35);
+  font-size:8.5px;font-weight:900;letter-spacing:.2px;backdrop-filter:blur(6px);
+}
+.hindi-original-chip{
+  padding:3px 9px;border-radius:20px;color:#a7f3d0;background:rgba(16,185,129,.12);
+  border:1px solid rgba(16,185,129,.34);font-size:11px;font-weight:800;
+}

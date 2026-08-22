@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://image.tmdb.org" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
-<link rel="stylesheet" href="style.css?v=10.0.0" />
+<link rel="stylesheet" href="style.css?v=11.0.0" />
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="skipContent">Skip to content</a>
@@ -111,6 +111,10 @@
     <div class="row-head"><h2 class="row-title" data-i18n="popularMovies">Popular Movies</h2></div>
     <div class="card-row" id="rowPopularRow"></div>
   </section>
+  <section class="row-section hindi-originals-row">
+    <div class="row-head"><h2 class="row-title" data-i18n="hindiOriginalsRow">Hindi Originals</h2><span class="row-count" data-i18n="hindiAudioGuaranteed">Original Hindi audio</span></div>
+    <div class="card-row" id="rowHindiRow"></div>
+  </section>
   <section class="row-section">
     <div class="row-head"><h2 class="row-title" data-i18n="topRatedMovies">Top Rated Movies</h2></div>
     <div class="card-row" id="rowTopRatedRow"></div>
@@ -160,6 +164,7 @@
     <button class="btn btn-ghost sm" id="resultsBack" data-i18n="back">Back</button>
   </div>
   <div class="cat-chips hidden" id="genreChips"></div>
+  <div class="smart-search-banner hidden" id="searchIntentBanner"></div>
   <div class="results-grid" id="resultsGrid" style="margin-top:16px"></div>
   <div class="results-empty hidden" id="resultsEmpty" data-i18n="noTitles">No titles found. Try something else.</div>
   <button class="btn btn-ghost sm hidden" id="resultsMore" style="margin:24px auto;display:block" data-i18n="loadMore">Load more</button>
@@ -325,13 +330,25 @@
       <!-- language / quality row -->
       <div class="pc-row pc-lang-row">
         <div class="pc-lang-controls">
-          <label class="lc-ctl">
+          <label class="lc-ctl" id="pcAudioControl">
             <span data-i18n="preferredAudio">Preferred audio</span>
-            <select id="pcLang" class="pc-select" title="Only available audio languages are shown">
-              <option value="">Auto (available)</option>
-              <option value="hi">Hindi (dub when available)</option>
+            <select id="pcLang" class="pc-select" title="Requests this track from compatible players">
+              <option value="">Auto (provider default)</option>
+              <option value="hi">Hindi</option>
             </select>
           </label>
+          <label class="lc-ctl" id="pcSpeedControl">
+            <span data-i18n="playbackSpeed">Playback speed</span>
+            <select id="pcSpeed" class="pc-select" aria-label="Playback speed">
+              <option value="0.5">0.5×</option>
+              <option value="0.75">0.75×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </label>
+          <span class="audio-track-status" id="audioTrackStatus"></span>
           <button class="btn btn-ghost sm" id="pcReload" title="Reload player" data-i18n="reload">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
             Reload
@@ -451,6 +468,18 @@
       </div>
 
       <div class="setting-row">
+        <label for="setAudioLang" data-i18n="audioPreferenceSetting">Preferred Audio</label>
+        <select id="setAudioLang" class="sv-select">
+          <option value="">Auto</option>
+          <option value="hi">Hindi</option>
+          <option value="en">English</option>
+          <option value="ta">Tamil</option>
+          <option value="te">Telugu</option>
+        </select>
+        <span class="tiny-note" data-i18n="audioPreferenceSettingNote">Requests this audio from compatible players; unavailable dubs cannot be created by the site.</span>
+      </div>
+
+      <div class="setting-row">
         <label for="setCountry" data-i18n="countryRegion">Country / Region</label>
         <div class="setting-inline">
           <select id="setCountry" class="sv-select"></select>
@@ -553,6 +582,6 @@
 </button>
 
 <noscript><div class="noscript">JavaScript is required to use StreamVerse.</div></noscript>
-<script src="app.js?v=10.0.0" defer></script>
+<script src="app.js?v=11.0.0" defer></script>
 </body>
 </html>

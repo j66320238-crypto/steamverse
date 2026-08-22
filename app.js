@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v10.0 — client
+   StreamVerse v11.0 — client
    • Same-origin Node/Render API keeps credentials and quota off the browser
    • Multiple fallback embed sources with season/episode picker
    • Playlists (multiple, named) — Netflix-style
@@ -52,15 +52,15 @@
     en: {
       skipContent: 'Skip to content', home: 'Home', movies: 'Movies', tvShows: 'TV Shows', anime: 'Anime',
       drama: 'Drama', liveTV: 'Live TV', playlists: 'Playlists', myList: 'My List', myPlaylists: 'My Playlists',
-      searchPlaceholder: 'Search movies, shows, anime…', watchNow: 'Watch Now', moreInfo: 'More Info',
-      continueWatching: 'Continue Watching', trendingNow: 'Trending Now', popularMovies: 'Popular Movies',
+      searchPlaceholder: 'Try “comedy”, “Hindi action”, a title…', watchNow: 'Watch Now', moreInfo: 'More Info',
+      continueWatching: 'Continue Watching', trendingNow: 'Trending Now', popularMovies: 'Popular Movies', hindiOriginalsRow: 'Hindi Originals', hindiAudioGuaranteed: 'Original Hindi audio',
       topRatedMovies: 'Top Rated Movies', popularTV: 'Popular TV Shows', topRatedTV: 'Top Rated TV',
       asianDramas: 'K-Drama & Asian Dramas', seeAll: 'See all →', topAnime: 'Top Anime', airingNow: 'Airing Now',
       comingSoon: 'Coming Soon', horrorPicks: 'Horror Picks', comedyNights: 'Comedy Nights',
       actionAdventure: 'Action & Adventure', browse: 'Browse', back: 'Back', loadMore: 'Load more',
       noTitles: 'No titles found. Try something else.', newPlaylist: 'New Playlist', backPlaylists: '‹ Back to playlists',
       rename: 'Rename', liveSub: '24/7 public channels — availability can change by region.', watchingNow: 'watching now',
-      nowPlaying: 'Now Playing', audio: 'Audio', preferredAudio: 'Preferred audio',
+      nowPlaying: 'Now Playing', audio: 'Audio', preferredAudio: 'Preferred audio', audioPreferenceSetting: 'Preferred Audio', audioPreferenceSettingNote: 'Requests this audio from compatible players; unavailable dubs cannot be created by the site.',
       audioNote: 'Audio tracks depend on the selected provider. Use the provider player menu if your preference is unavailable.',
       swipeRecommendations: 'Swipe up for recommendations', recommended: 'Recommended for you', seeAllUp: 'See all ↑',
       swipeDown: 'Swipe down to return', reload: 'Reload', youMayLike: 'You may also like', episodes: 'Episodes',
@@ -95,7 +95,10 @@
       online: 'Online', offline: 'Offline', idle: 'Idle', unavailable: 'Unavailable',
       connecting: 'Connecting…', streamUnavailable: 'Stream unavailable. Try another channel.', hlsUnsupported: 'Live TV is not supported in this browser.',
       audioEnhanced: 'Clear audio enabled', audioNormal: 'Normal audio restored', quality: 'Quality', speed: 'Speed',
-      resume: 'Resume', playlistName: 'Playlist name:', newPlaylistName: 'New playlist name:',
+      playbackSpeed: 'Playback speed', speedApplied: 'Playback speed: {speed}×', speedProviderNote: 'This provider uses its own speed menu.',
+      smartResults: 'Smart results: {label}', filterAll: 'All', filterMovies: 'Movies', filterTV: 'TV', filterAnime: 'Anime',
+      hindiOriginal: 'Hindi original audio', hindiRequested: 'Hindi audio requested', tryHindiSource: 'Try Hindi-dub source', audioNotGuaranteed: 'Dub availability is controlled by the selected provider.',
+      resume: 'Resume', recentlyOpened: 'Recently opened', playlistName: 'Playlist name:', newPlaylistName: 'New playlist name:',
       emptyPlaylists: "You haven't created any playlists yet.", emptyPlaylistHint: 'Create a Weekend Watch or Anime Marathon list.',
       titlesCount: '{count} title', titlesCountPlural: '{count} titles', alreadyPlaylist: 'Already in playlist',
       addedPlaylist: 'Added to “{name}”', noOfficialServices: 'No official services found for your region.',
@@ -105,15 +108,15 @@
     hi: {
       skipContent: 'मुख्य सामग्री पर जाएँ', home: 'होम', movies: 'फ़िल्में', tvShows: 'टीवी शो', anime: 'ऐनिमे',
       drama: 'ड्रामा', liveTV: 'लाइव टीवी', playlists: 'प्लेलिस्ट', myList: 'मेरी सूची', myPlaylists: 'मेरी प्लेलिस्ट',
-      searchPlaceholder: 'फ़िल्म, शो या ऐनिमे खोजें…', watchNow: 'अभी देखें', moreInfo: 'और जानकारी',
-      continueWatching: 'देखना जारी रखें', trendingNow: 'अभी ट्रेंडिंग', popularMovies: 'लोकप्रिय फ़िल्में',
+      searchPlaceholder: '“कॉमेडी”, “हिन्दी एक्शन” या कोई नाम खोजें…', watchNow: 'अभी देखें', moreInfo: 'और जानकारी',
+      continueWatching: 'देखना जारी रखें', trendingNow: 'अभी ट्रेंडिंग', popularMovies: 'लोकप्रिय फ़िल्में', hindiOriginalsRow: 'मूल हिन्दी फ़िल्में', hindiAudioGuaranteed: 'मूल हिन्दी ऑडियो',
       topRatedMovies: 'टॉप रेटेड फ़िल्में', popularTV: 'लोकप्रिय टीवी शो', topRatedTV: 'टॉप रेटेड टीवी',
       asianDramas: 'के-ड्रामा और एशियाई ड्रामा', seeAll: 'सभी देखें →', topAnime: 'टॉप ऐनिमे', airingNow: 'अभी प्रसारित',
       comingSoon: 'जल्द आ रहा है', horrorPicks: 'हॉरर पसंद', comedyNights: 'कॉमेडी नाइट्स',
       actionAdventure: 'एक्शन और एडवेंचर', browse: 'ब्राउज़ करें', back: 'वापस', loadMore: 'और दिखाएँ',
       noTitles: 'कोई शीर्षक नहीं मिला। कुछ और खोजें।', newPlaylist: 'नई प्लेलिस्ट', backPlaylists: '‹ प्लेलिस्ट पर वापस',
       rename: 'नाम बदलें', liveSub: '24/7 सार्वजनिक चैनल — उपलब्धता क्षेत्र के अनुसार बदल सकती है।', watchingNow: 'अभी देख रहे हैं',
-      nowPlaying: 'अभी चल रहा है', audio: 'ऑडियो', preferredAudio: 'पसंदीदा ऑडियो',
+      nowPlaying: 'अभी चल रहा है', audio: 'ऑडियो', preferredAudio: 'पसंदीदा ऑडियो', audioPreferenceSetting: 'पसंदीदा ऑडियो', audioPreferenceSettingNote: 'संगत प्लेयर से यह ऑडियो माँगा जाएगा; जो डब मौजूद नहीं है उसे साइट बना नहीं सकती।',
       audioNote: 'ऑडियो ट्रैक चुने गए प्रदाता पर निर्भर हैं। भाषा न मिले तो वीडियो प्लेयर के मेनू में चुनें।',
       swipeRecommendations: 'सुझावों के लिए ऊपर स्वाइप करें', recommended: 'आपके लिए सुझाव', seeAllUp: 'सभी देखें ↑',
       swipeDown: 'वापस आने के लिए नीचे स्वाइप करें', reload: 'फिर लोड करें', youMayLike: 'आपको यह भी पसंद आ सकता है',
@@ -148,7 +151,10 @@
       online: 'ऑनलाइन', offline: 'ऑफ़लाइन', idle: 'खाली', unavailable: 'उपलब्ध नहीं', connecting: 'कनेक्ट हो रहा है…',
       streamUnavailable: 'स्ट्रीम उपलब्ध नहीं है। दूसरा चैनल आज़माएँ।', hlsUnsupported: 'इस ब्राउज़र में लाइव टीवी समर्थित नहीं है।',
       audioEnhanced: 'साफ़ ऑडियो चालू है', audioNormal: 'सामान्य ऑडियो बहाल', quality: 'क्वालिटी', speed: 'स्पीड',
-      resume: 'जारी रखें', playlistName: 'प्लेलिस्ट का नाम:', newPlaylistName: 'नई प्लेलिस्ट का नाम:',
+      playbackSpeed: 'वीडियो स्पीड', speedApplied: 'वीडियो स्पीड: {speed}×', speedProviderNote: 'इस सर्वर का अपना स्पीड मेनू है।',
+      smartResults: 'स्मार्ट नतीजे: {label}', filterAll: 'सभी', filterMovies: 'फ़िल्में', filterTV: 'टीवी', filterAnime: 'ऐनिमे',
+      hindiOriginal: 'मूल हिन्दी ऑडियो', hindiRequested: 'हिन्दी ऑडियो माँगा गया', tryHindiSource: 'हिन्दी-डब सर्वर आज़माएँ', audioNotGuaranteed: 'डब की उपलब्धता चुने गए सर्वर पर निर्भर है।',
+      resume: 'जारी रखें', recentlyOpened: 'हाल में खोला', playlistName: 'प्लेलिस्ट का नाम:', newPlaylistName: 'नई प्लेलिस्ट का नाम:',
       emptyPlaylists: 'आपने अभी कोई प्लेलिस्ट नहीं बनाई है।', emptyPlaylistHint: 'वीकेंड वॉच या ऐनिमे मैराथन सूची बनाएँ।',
       titlesCount: '{count} शीर्षक', titlesCountPlural: '{count} शीर्षक', alreadyPlaylist: 'पहले से प्लेलिस्ट में है',
       addedPlaylist: '“{name}” में जोड़ दिया', noOfficialServices: 'आपके क्षेत्र में कोई आधिकारिक सेवा नहीं मिली।',
@@ -188,31 +194,60 @@
       : 'StreamVerse — Movies, TV Shows, Anime & Live TV';
   }
 
-  /* ========= STREAM SOURCES (verified working) =========
-     Order = priority for "Auto (best)". */
+  /* ========= STREAM SOURCES =========
+     Cross-origin providers control their own catalogues. "audioRequest"
+     means the provider documents an audio-language preference; it is still
+     only applied when that title actually carries the requested track. */
+  const providerAudioName = (code) => ({
+    hi:'Hindi', en:'English', ta:'Tamil', te:'Telugu', ml:'Malayalam', kn:'Kannada',
+    bn:'Bengali', mr:'Marathi', ja:'Japanese', ko:'Korean', es:'Spanish', fr:'French', de:'German',
+  })[String(code || '').slice(0,2).toLowerCase()] || '';
+  const withQuery = (base, values) => {
+    const query = new URLSearchParams();
+    Object.entries(values).forEach(([key, value]) => {
+      if (value !== '' && value != null && value !== false) query.set(key, String(value));
+    });
+    return base + (base.includes('?') ? '&' : '?') + query.toString();
+  };
   const STREAM_SOURCES = [
-    { id: 'vidlink',    name: 'VidLink · JW',   color: '#14b8a6', priority: 10,
-      // JW mode gives the embed its proper audio/volume pipeline. autoplay is
-      // enabled, while the browser still requires one user tap for sound.
-      movie: (id, lang) => `https://vidlink.pro/movie/${id}?player=jw&autoplay=true&poster=true&title=true&nextbutton=true${lang ? '&language='+encodeURIComponent(lang) : ''}`,
-      tv: (id,s,e,lang) => `https://vidlink.pro/tv/${id}/${s}/${e}?player=jw&autoplay=true&poster=true&title=true&nextbutton=true${lang ? '&language='+encodeURIComponent(lang) : ''}` },
-    { id: 'vidsrc-to',  name: 'VidSrc.to',     color: '#e50914', priority: 9,
-      movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
-      tv: (id,s,e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
-    { id: 'vidsrc-me',  name: 'VidSrc.me',     color: '#dc2626', priority: 8,
-      movie: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`,
-      tv: (id,s,e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
-    { id: 'vidsrc-su',  name: 'VidSrc.su',     color: '#b91c1c', priority: 7,
-      movie: (id) => `https://vidsrc.su/embed/movie/${id}`,
-      tv: (id,s,e) => `https://vidsrc.su/embed/tv/${id}/${s}/${e}` },
-    { id: '2embed-stream', name: '2Embed',     color: '#d97706', priority: 6,
-      movie: (id) => `https://2embed.stream/embed/movie/${id}`,
-      tv: (id,s,e) => `https://2embed.stream/embed/tv/${id}/${s}/${e}` },
+    { id:'vidcore', name:'VidCore · Multi-source', color:'#8b5cf6', priority:30, nativeSpeed:true, originalAudio:true,
+      movie:(id,lang)=>withQuery(`https://vidcore.org/embed/movie/${id}`,{lang:lang||'',autoplay:'true',theme:'e50914'}),
+      tv:(id,s,e,lang)=>withQuery(`https://vidcore.org/embed/tv/${id}/${s}/${e}`,{lang:lang||'',autoplay:'true',theme:'e50914'}) },
+    { id:'apiplayer', name:'APIPlayer · Speed control', color:'#22c55e', priority:26, remoteSpeed:true,
+      movie:(id,lang)=>withQuery(`https://apiplayer.ru/embed/movie/${id}`,{autoplay:1,lang:lang||'',resume:'auto',color:'e50914'}),
+      tv:(id,s,e,lang)=>withQuery(`https://apiplayer.ru/embed/tv/${id}/${s}/${e}`,{autoplay:1,lang:lang||'',resume:'auto',color:'e50914'}) },
+    { id:'vidlink', name:'VidLink · JW', color:'#14b8a6', priority:22, originalAudio:true,
+      movie:(id,lang)=>withQuery(`https://vidlink.pro/movie/${id}`,{player:'jw',autoplay:'true',poster:'true',title:'true',nextbutton:'true',language:lang||''}),
+      tv:(id,s,e,lang)=>withQuery(`https://vidlink.pro/tv/${id}/${s}/${e}`,{player:'jw',autoplay:'true',poster:'true',title:'true',nextbutton:'true',language:lang||''}) },
+    // Peachify documents dub/audio selection, but its anti-bot gateway can
+    // reject some regions. Keep it as an explicit Hindi-source option instead
+    // of trapping Auto mode on a challenge page.
+    { id:'peachify', name:'Hindi Dub request · Beta', color:'#f97316', priority:40, auto:false, audioRequest:true, progressEvents:true,
+      movie:(id,lang)=>withQuery(`https://peachify.top/embed/movie/${id}`,{dub:providerAudioName(lang),audio:providerAudioName(lang),sub:lang||'',autoPlay:'true',accent:'e50914'}),
+      tv:(id,s,e,lang)=>withQuery(`https://peachify.top/embed/tv/${id}/${s}/${e}`,{dub:providerAudioName(lang),audio:providerAudioName(lang),sub:lang||'',autoPlay:'true',autoNext:30,accent:'e50914'}) },
+    { id:'vidsrc-to', name:'VidSrc.to', color:'#e50914', priority:14,
+      movie:(id)=>`https://vidsrc.to/embed/movie/${id}`,
+      tv:(id,s,e)=>`https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
+    { id:'vidsrc-me', name:'VidSrc.me', color:'#dc2626', priority:12,
+      movie:(id)=>`https://vidsrc.me/embed/movie?tmdb=${id}`,
+      tv:(id,s,e)=>`https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+    { id:'vidsrc-su', name:'VidSrc.su', color:'#b91c1c', priority:10,
+      movie:(id)=>`https://vidsrc.su/embed/movie/${id}`,
+      tv:(id,s,e)=>`https://vidsrc.su/embed/tv/${id}/${s}/${e}` },
   ];
-  // "Auto" — tries sources in priority order until one loads
   const AUTO_ID = 'auto';
-  function orderedSources() {
-    return [...STREAM_SOURCES].sort((a,b) => (b.priority||0)-(a.priority||0));
+  function orderedSources(includeManual = false) {
+    const player = state && state.player || {};
+    return STREAM_SOURCES.filter((source) => includeManual || source.auto !== false).sort((a,b) => {
+      const score = (source) => {
+        let value = source.priority || 0;
+        if (player.originalLanguage === 'hi' && source.originalAudio) value += 70;
+        if (player.audioLang === 'hi' && source.audioRequest) value += 90;
+        if (Number(player.speed || 1) !== 1 && source.remoteSpeed) value += 100;
+        return value;
+      };
+      return score(b) - score(a);
+    });
   }
 
   /* ========= LIVE TV CHANNELS (free public HLS) ========= */
@@ -278,6 +313,7 @@
     continue:  readStoredArray('sv-continue'),
     playlists: readStoredArray('sv-playlists'),
     browse: { page: 1, totalPages: 1, kind: 'movie', genre: 0, loading: false, apiPath: '' },
+    search: { query: '', items: [], filter: 'all', intent: null },
     player: (() => {
       const saved = localStorage.getItem('sv-source');
       const validIds = new Set([AUTO_ID, ...STREAM_SOURCES.map(s=>s.id)]);
@@ -286,7 +322,9 @@
         season: 1, episode: 1, seasons: [], episodes: [],
         source: (saved && validIds.has(saved)) ? saved : AUTO_ID,
         autoIdx: 0, autoTimer: null, _lastSrcAt: 0, loadToken: 0,
-        audioLang: localStorage.getItem('sv-audio-lang') || '',
+        audioLang: localStorage.getItem('sv-audio-lang') || (((localStorage.getItem('sv-lang')||'').startsWith('hi')||(localStorage.getItem('sv-ui-lang')||'')==='hi')?'hi':''),
+        speed: Number(localStorage.getItem('sv-playback-speed') || 1),
+        originalLanguage: '', audioConfirmed: false,
         animeVideo: null,
       };
     })(),
@@ -425,6 +463,7 @@
 
       if (p.startsWith('/trending')) return directTmdb('/trending/all/week');
       if (p.startsWith('/movie/popular')) return directTmdb('/movie/popular');
+      if (p.startsWith('/movie/hindi')) return directTmdb('/discover/movie', { with_original_language:'hi', sort_by:'popularity.desc', 'vote_count.gte':'20' });
       if (p.startsWith('/movie/top_rated')) return directTmdb('/movie/top_rated');
       if (p.startsWith('/movie/upcoming')) return directTmdb('/movie/upcoming');
       if (p.startsWith('/movie/now_playing')) return directTmdb('/movie/now_playing');
@@ -484,9 +523,9 @@
         return { countries: (list || []).map((c) => ({ code: c.iso_3166_1, name: c.english_name, native: c.native_name })) };
       }
       if (p.startsWith('/geo')) return { country_code: 'IN', country: 'India', flag: '🇮🇳' };
-      if (p.startsWith('/stats')) return { version: '10.0.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
+      if (p.startsWith('/stats')) return { version: '11.0.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
       if (p.startsWith('/cache/clear')) return { ok: true, cleared: 0 };
-      if (p.startsWith('/health')) return { ok: true, version: '10.0.0-client' };
+      if (p.startsWith('/health')) return { ok: true, version: '11.0.0-client' };
       throw new Error('unknown api path: ' + p);
     };
 
@@ -593,22 +632,33 @@
     btn.innerHTML = on ? CHECK : PLUS;
   }
   function recordContinue(item, opts = {}) {
-    const id = item.id, media = item.media_type || mediaOf(item);
-    const isTv = media === 'tv' || opts.season != null;
-    const entry = {
-      id, media, animeSource: item.anime_source || item.animeSource || opts.animeSource || null,
-      title: titleOf(item), poster: item.poster_path||'', backdrop: item.backdrop_path||'',
-      vote_average: item.vote_average||0, release_date: item.release_date||item.first_air_date||'',
-      season: isTv ? (opts.season || state.player.season || 1) : null,
-      episode: isTv ? (opts.episode || state.player.episode || 1) : null,
-      progress: Math.round(20 + Math.random()*70), at: Date.now(),
+    const id=item.id, media=item.media_type||mediaOf(item);
+    const isTv=media==='tv'||opts.season!=null;
+    const previous=state.continue.find((entry)=>String(entry.id)===String(id)&&entry.media===media);
+    const entry={
+      id,media,animeSource:item.anime_source||item.animeSource||opts.animeSource||previous?.animeSource||null,
+      title:titleOf(item)||previous?.title||'',poster:item.poster_path||previous?.poster||'',backdrop:item.backdrop_path||previous?.backdrop||'',
+      vote_average:item.vote_average||previous?.vote_average||0,release_date:item.release_date||item.first_air_date||previous?.release_date||'',
+      season:isTv?(opts.season||state.player.season||previous?.season||1):null,
+      episode:isTv?(opts.episode||state.player.episode||previous?.episode||1):null,
+      progress:Number.isFinite(opts.progress)?Math.max(0,Math.min(100,opts.progress)):(previous?.progress||0),
+      position:Number.isFinite(opts.position)?opts.position:(previous?.position||0),
+      duration:Number.isFinite(opts.duration)?opts.duration:(previous?.duration||0),at:Date.now(),
     };
-    const idx = state.continue.findIndex((x) => String(x.id) === String(id) && x.media === media);
-    if (idx >= 0) state.continue.splice(idx,1);
-    state.continue.unshift(entry);
-    state.continue = state.continue.slice(0,12);
-    localStorage.setItem('sv-continue', JSON.stringify(state.continue));
+    state.continue=state.continue.filter((value)=>!(String(value.id)===String(id)&&value.media===media));
+    state.continue.unshift(entry); state.continue=state.continue.slice(0,12);
+    localStorage.setItem('sv-continue',JSON.stringify(state.continue));
     renderContinueRow();
+  }
+  let lastProgressSave=0;
+  function updateCurrentProgress(position,duration) {
+    const player=state.player;
+    if(!player.active||!player.tmdbId||!Number.isFinite(position)||!Number.isFinite(duration)||duration<=0)return;
+    const now=Date.now(); if(now-lastProgressSave<5000)return; lastProgressSave=now;
+    recordContinue({id:player.tmdbId,media_type:player.media,title:player.title,poster_path:player.poster||'',backdrop_path:player.backdrop||''},{
+      season:player.media==='tv'?player.season:null,episode:player.media==='tv'?player.episode:null,
+      position,duration,progress:Math.round(position/duration*100),
+    });
   }
 
   function loadPlaylists() { state.playlists = readStoredArray('sv-playlists'); }
@@ -651,6 +701,7 @@
     el.innerHTML = `
       <img class="card-poster" loading="lazy" decoding="async" fetchpriority="low" src="${esc(poster)}"${srcset} alt="${safeTitle}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
       ${badge}
+      ${String(m.original_language||'').toLowerCase()==='hi'?`<span class="card-audio-badge">🎧 ${esc(state.uiLang==='hi'?'मूल हिन्दी':'Hindi original')}</span>`:''}
       ${upcoming?`<span class="card-badge upcoming">${esc(t('soon').toUpperCase())}</span>`:''}
       ${rating}
       <div class="card-actions">
@@ -727,7 +778,8 @@
     el.className = 'card'; el.tabIndex = 0; el.setAttribute('role','button');
     el.dataset.id = c.id; el.dataset.media = c.media;
     const titleSafe = esc(c.title), onList = inWatchlist(c.id, c.media);
-    const sub = c.season ? `S${c.season} · E${c.episode}` : `${Math.round(c.progress)}% ${state.uiLang === 'hi' ? 'देखा' : 'watched'}`;
+    const progress=Number(c.progress)||0;
+    const sub=c.season?`S${c.season} · E${c.episode}${progress?` · ${Math.round(progress)}%`:''}`:(progress?`${Math.round(progress)}% ${state.uiLang==='hi'?'देखा':'watched'}`:t('recentlyOpened'));
     el.innerHTML = `
       <img class="card-poster" loading="lazy" src="${esc(posterUrl(c.poster))}" alt="${titleSafe}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
       ${c.media==='anime'?'<span class="card-badge anime">ANIME</span>':c.media==='tv'?'<span class="card-badge tv">TV</span>':'<span class="card-badge">MOVIE</span>'}
@@ -835,7 +887,7 @@
   function loadHome() {
     state.homeLoaded = true;
     clearHomeRowObservers();
-    ['rowTrendingRow','rowPopularRow','rowTopRatedRow','rowTvRow','rowTvTopRow','rowAnimeRow','rowAiringRow','rowUpcomingRow','rowHorrorRow','rowComedyRow','rowActionRow','rowDramaRow'].forEach(skelRow);
+    ['rowTrendingRow','rowPopularRow','rowHindiRow','rowTopRatedRow','rowTvRow','rowTvTopRow','rowAnimeRow','rowAiringRow','rowUpcomingRow','rowHorrorRow','rowComedyRow','rowActionRow','rowDramaRow'].forEach(skelRow);
     renderContinueRow();
 
     // The hero + first visible rows are eager; everything else waits until
@@ -849,6 +901,7 @@
     }).catch((e) => { console.warn(e); rowError('rowTrendingRow', loadHome); });
 
     loadRow('/movie/popular', 'rowPopularRow', tmdbCard);
+    loadRowWhenVisible('/movie/hindi', 'rowHindiRow', tmdbCard, 80);
     loadRow('/tv/popular', 'rowTvRow', tmdbCard);
 
     const animeFiltered = (rowId, path) => {
@@ -1003,7 +1056,7 @@
   }
 
   function showResultsForNav(nav) {
-    hideAllViews(); $('#resultsView').classList.remove('hidden');
+    hideAllViews(); $('#resultsView').classList.remove('hidden'); $('#searchIntentBanner').classList.add('hidden');
     window.scrollTo({top:0});
     const titles = { movies:t('movies'), tv:t('tvShows'), anime:t('anime') };
     $('#resultsTitle').textContent = titles[nav] || t('browse');
@@ -1018,7 +1071,7 @@
   }
 
   function showDrama() {
-    hideAllViews(); $('#resultsView').classList.remove('hidden');
+    hideAllViews(); $('#resultsView').classList.remove('hidden'); $('#searchIntentBanner').classList.add('hidden');
     window.scrollTo({top:0});
     $('#resultsTitle').textContent = t('asianDramas');
     $('#genreChips').classList.remove('hidden');
@@ -1095,69 +1148,122 @@
     } else wrap.classList.add('hidden');
   }
 
-  /* ================= SEARCH ================= */
+  /* ================= SMART / DYNAMIC SEARCH ================= */
   const searchWrap=$('#searchWrap'), searchInput=$('#searchInput');
   $('#searchToggle').onclick=()=>{
     searchWrap.classList.toggle('open');
-    if(searchWrap.classList.contains('open')) setTimeout(()=>searchInput.focus(),200);
+    if(searchWrap.classList.contains('open')) setTimeout(()=>searchInput.focus(),160);
     else { searchInput.value=''; searchController?.abort(); }
   };
-  document.addEventListener('click',(e)=>{
+  document.addEventListener('click',(event)=>{
     if(!searchWrap.classList.contains('open')) return;
-    if(e.target.closest('.search-wrap')||e.target.closest('.search-toggle')) return;
+    if(event.target.closest('.search-wrap')||event.target.closest('.search-toggle')) return;
     if(!searchInput.value) searchWrap.classList.remove('open');
   });
   let searchTimer;
   let searchController = null;
   let searchRequestId = 0;
-  searchInput.addEventListener('input',(e)=>{
-    const q=e.target.value.trim();
-    searchWrap.classList.toggle('has-value',!!q);
+  searchInput.addEventListener('input',(event)=>{
+    const query=event.target.value.trim();
+    searchWrap.classList.toggle('has-value',!!query);
     clearTimeout(searchTimer);
-    if(!q) { searchController?.abort(); return; }
-    searchTimer=setTimeout(()=>doSearch(q),350);
+    if(!query) { searchController?.abort(); return; }
+    if (query.length < 2) return;
+    searchTimer=setTimeout(()=>doSearch(query),260);
   });
-  searchInput.addEventListener('keydown',(e)=>{
-    if(e.key==='Enter') doSearch(searchInput.value.trim());
-    if(e.key==='Escape'){ searchInput.value=''; searchInput.blur(); searchController?.abort(); }
+  searchInput.addEventListener('keydown',(event)=>{
+    if(event.key==='Enter') doSearch(searchInput.value.trim());
+    if(event.key==='Escape'){ searchInput.value=''; searchInput.blur(); searchController?.abort(); }
   });
   $('#searchClear').onclick=()=>{
     searchInput.value=''; searchWrap.classList.remove('has-value'); searchController?.abort(); searchInput.focus();
   };
 
-  async function doSearch(q) {
-    if(!q) return;
-    searchController?.abort();
-    searchController = new AbortController();
-    const signal = searchController.signal;
-    const requestId = ++searchRequestId;
-    hideAllViews(); $('#resultsView').classList.remove('hidden');
-    $('#genreChips').classList.add('hidden'); $('#resultsMore').classList.add('hidden');
-    $('#resultsEmpty').classList.add('hidden');
-    $('#resultsTitle').textContent = t('resultsFor', { query: q });
+  function searchMediaType(item) {
+    if (item && (item.kind === 'anime' || item.mal_id != null || item.anilist_id != null)) return 'anime';
+    return mediaOf(item);
+  }
+  function renderSearchItems() {
     const grid=$('#resultsGrid'); grid.innerHTML='';
-    for (let i=0;i<18;i++){ const skeleton=document.createElement('div'); skeleton.className='skel-card skel'; grid.appendChild(skeleton); }
+    const filter=state.search.filter || 'all';
+    const items=(state.search.items||[]).filter((item)=>filter==='all'||searchMediaType(item)===filter);
+    items.forEach((item)=>grid.appendChild(searchMediaType(item)==='anime'?animeCard(item):tmdbCard(item)));
+    $('#resultsEmpty').classList.toggle('hidden',items.length>0);
+  }
+  function renderSearchFilters() {
+    const wrap=$('#genreChips'); wrap.innerHTML=''; wrap.classList.remove('hidden');
+    const counts={all:state.search.items.length,movie:0,tv:0,anime:0};
+    state.search.items.forEach((item)=>{ const kind=searchMediaType(item); if(counts[kind]!=null) counts[kind]++; });
+    const options=[['all',t('filterAll')],['movie',t('filterMovies')],['tv',t('filterTV')],['anime',t('filterAnime')]];
+    options.forEach(([value,label])=>{
+      if(value!=='all'&&!counts[value]) return;
+      const button=document.createElement('button');
+      button.className='cat-chip'+(state.search.filter===value?' active':'');
+      button.textContent=`${label} (${counts[value]})`;
+      button.onclick=()=>{ state.search.filter=value; renderSearchFilters(); renderSearchItems(); };
+      wrap.appendChild(button);
+    });
+  }
+  function renderSearchIntent(intent) {
+    const banner=$('#searchIntentBanner');
+    if(!intent){ banner.classList.add('hidden'); banner.innerHTML=''; return; }
+    const parts=[];
+    if(intent.language_label) parts.push(intent.language_label);
+    if(intent.genre_label) parts.push(intent.genre_label);
+    if(intent.year) parts.push(intent.year);
+    if(intent.sort==='vote_average.desc') parts.push(state.uiLang==='hi'?'टॉप रेटेड':'Top rated');
+    if(intent.sort==='date.desc') parts.push(state.uiLang==='hi'?'नया':'Latest');
+    const label=parts.join(' · ')||intent.label||state.search.query;
+    banner.innerHTML=`<span class="smart-search-icon">✦</span><div><b>${esc(t('smartResults',{label}))}</b><small>${esc(state.uiLang==='hi'?'शैली, भाषा और प्रकार समझकर परिणाम दिखाए गए हैं।':'Matched by genre, language and media type — not just title text.')}</small></div>`;
+    banner.classList.remove('hidden');
+  }
+
+  async function doSearch(query) {
+    if(!query) return;
+    searchController?.abort();
+    searchController=new AbortController();
+    const signal=searchController.signal;
+    const requestId=++searchRequestId;
+    hideAllViews(); $('#resultsView').classList.remove('hidden');
+    $('#resultsMore').classList.add('hidden'); $('#resultsEmpty').classList.add('hidden');
+    $('#genreChips').classList.add('hidden'); $('#searchIntentBanner').classList.add('hidden');
+    $('#resultsTitle').textContent=t('resultsFor',{query});
+    const grid=$('#resultsGrid'); grid.innerHTML='';
+    for(let index=0;index<18;index++){const skeleton=document.createElement('div');skeleton.className='skel-card skel';grid.appendChild(skeleton);}
     window.scrollTo({top:0});
-    try {
-      const [catalogue, animeResult] = await Promise.allSettled([
-        api('/search?q='+encodeURIComponent(q), { signal }),
-        api('/anime/search?q='+encodeURIComponent(q), { signal }),
-      ]);
-      if (requestId !== searchRequestId || signal.aborted) return;
-      grid.innerHTML='';
-      const movies = catalogue.status === 'fulfilled'
-        ? (catalogue.value.results||[]).filter((x)=>x.media_type==='movie'||x.media_type==='tv'||(!x.media_type&&(x.title||x.name))).slice(0,30)
-        : [];
-      const animeItems = animeResult.status === 'fulfilled' ? (animeResult.value.data||[]).slice(0,12) : [];
-      movies.forEach((item)=>grid.appendChild(tmdbCard(item)));
-      animeItems.forEach((item)=>grid.appendChild(animeCard(item)));
-      $('#resultsEmpty').classList.toggle('hidden', grid.children.length > 0);
-      if (!grid.children.length && catalogue.status === 'rejected' && animeResult.status === 'rejected') {
-        grid.innerHTML = `<div class="results-empty">${esc(t('searchFailed'))}</div>`;
+    try{
+      const catalogue=await api('/search/smart?q='+encodeURIComponent(query),{signal});
+      if(requestId!==searchRequestId||signal.aborted)return;
+      const intent=catalogue.intent||null;
+      let animeItems=[];
+      const wantsAnime=!intent||intent.media==='all'||intent.media==='anime';
+      if(wantsAnime){
+        try{
+          let animeData;
+          if(intent&&intent.anime_genre_id){
+            animeData=await api(`/anime/genre?g=${intent.anime_genre_id}&name=${encodeURIComponent(intent.genre_label||'')}`,{signal});
+          }else if(intent&&intent.media==='anime'){
+            animeData=await api('/anime/top?page=1',{signal});
+          }else{
+            animeData=await api('/anime/search?q='+encodeURIComponent(query),{signal});
+          }
+          animeItems=(animeData.data||[]).slice(0,18).map((item)=>({...item,kind:'anime'}));
+        }catch(error){if(error.name==='AbortError')throw error;}
+      }
+      if(requestId!==searchRequestId||signal.aborted)return;
+      const catalogueItems=(catalogue.results||[])
+        .filter((item)=>item&&(item.media_type==='movie'||item.media_type==='tv'||item.title||item.name))
+        .filter(isReleased).slice(0,40);
+      state.search={query,items:[...catalogueItems,...animeItems],filter:intent&&intent.media!=='all'?intent.media:'all',intent};
+      // If the requested filter has no items, gracefully show everything.
+      if(state.search.filter!=='all'&&!state.search.items.some((item)=>searchMediaType(item)===state.search.filter)) state.search.filter='all';
+      renderSearchIntent(intent); renderSearchFilters(); renderSearchItems();
+      if(!state.search.items.length){
+        grid.innerHTML=`<div class="results-empty">${esc(t('searchFailed'))}</div>`;
         $('#resultsEmpty').classList.add('hidden');
       }
-    } catch(e) {
-      if (e.name !== 'AbortError') grid.innerHTML=`<div class="results-empty">${esc(t('searchFailed'))}</div>`;
+    }catch(error){
+      if(error.name!=='AbortError')grid.innerHTML=`<div class="results-empty">${esc(t('searchFailed'))}</div>`;
     }
   }
 
@@ -1310,6 +1416,7 @@
       <div class="modal-meta">
         ${match?`<span class="match">${match}% Match</span>`:''}
         <span>${year(d.release_date||d.first_air_date)}</span>
+        ${String(d.original_language||'').toLowerCase()==='hi'?`<span class="hindi-original-chip">🎧 ${esc(t('hindiOriginal'))}</span>`:''}
         ${cert?`<span class="chip" style="padding:2px 9px">${esc(cert)}</span>`:''}
         ${runtime}${seasons}
         ${d.status?`<span>${esc(d.status)}</span>`:''}
@@ -1444,20 +1551,55 @@
   /* ============================================================
      STREAMING PLAYER
      ============================================================ */
-  function getSource(id) { return STREAM_SOURCES.find(s=>s.id===id) || orderedSources()[0]; }
+  function getSource(id) { return STREAM_SOURCES.find(source=>source.id===id) || orderedSources()[0]; }
   function activeSource() {
-    const p = state.player;
-    if (p.source === AUTO_ID) return orderedSources()[p.autoIdx] || orderedSources()[0];
-    return getSource(p.source);
+    const player=state.player;
+    if(player.source===AUTO_ID)return orderedSources()[player.autoIdx]||orderedSources()[0];
+    return getSource(player.source);
   }
-  function buildEmbedUrl(src) {
-    const p=state.player, s=src||activeSource(), id=p.tmdbId;
-    const lang = p.audioLang || '';
-    let url = p.media==='movie' ? s.movie(id, lang) : s.tv(id, p.season||1, p.episode||1, lang);
-    // Only VidLink documents the language query used by this app. Do not
-    // append unknown parameters to fallback providers because that can make
-    // an otherwise healthy video fail to load.
-    return url;
+  function buildEmbedUrl(source) {
+    const player=state.player, selected=source||activeSource(), id=player.tmdbId;
+    const lang=player.audioLang||'';
+    return player.media==='movie'
+      ? selected.movie(id,lang,player.speed||1)
+      : selected.tv(id,player.season||1,player.episode||1,lang,player.speed||1);
+  }
+  function updateAudioTrackStatus() {
+    const status=$('#audioTrackStatus'); if(!status)return;
+    const player=state.player, source=activeSource();
+    status.className='audio-track-status';
+    if(player.originalLanguage==='hi'){
+      status.textContent='✓ '+t('hindiOriginal'); status.classList.add('confirmed');
+    }else if(player.audioLang==='hi'){
+      status.classList.add('requested');
+      status.innerHTML=`<span>◉ ${esc(t('hindiRequested'))}</span>${source&&source.audioRequest?'':`<button type="button" class="try-hindi-source">${esc(t('tryHindiSource'))}</button>`}`;
+      status.title=t('audioNotGuaranteed');
+      const button=status.querySelector('.try-hindi-source');
+      if(button)button.onclick=()=>{
+        player.source='peachify'; player.autoIdx=0;
+        renderSourceChips(); loadStream(true);
+      };
+    }else status.textContent='';
+  }
+  function postPlayerSpeed(speed) {
+    const frame=$('#playerFrame'); if(!frame||!frame.contentWindow)return;
+    const value=Number(speed)||1;
+    const messages=[
+      {action:'setSpeed',value},
+      {type:'PLAYER_COMMAND',command:'setSpeed',value},
+      {type:'SET_SPEED',speed:value},
+      {event:'setPlaybackRate',value},
+    ];
+    messages.forEach((message)=>{try{frame.contentWindow.postMessage(message,'*');}catch(error){}});
+    try{frame.contentWindow.postMessage(JSON.stringify({event:'command',func:'setPlaybackRate',args:[value]}),'*');}catch(error){}
+  }
+  function schedulePlaybackSpeed() {
+    const source=activeSource();
+    if(state.player.media==='anime'||(source&&source.remoteSpeed)){
+      [350,1100,2400].forEach((delay)=>window.setTimeout(()=>{
+        if(state.player.active)postPlayerSpeed(state.player.speed);
+      },delay));
+    }
   }
   function showPlayerLoading(text) {
     const el=$('#playerLoading'); el.classList.add('show');
@@ -1478,13 +1620,13 @@
         state.player.source=id;
         if (id===AUTO_ID) state.player.autoIdx=0;
         localStorage.setItem('sv-source', id);
-        renderSourceChips();
+        renderSourceChips(); updateAudioTrackStatus();
         loadStream(true);
       };
       wrap.appendChild(b);
     };
     mkChip(AUTO_ID, t('autoBest'), '#22d3ee', true);
-    orderedSources().forEach((s)=>mkChip(s.id, s.name, s.color, false));
+    orderedSources(true).forEach((source)=>mkChip(source.id, `${source.audioRequest?'🎧 ':''}${source.remoteSpeed||source.nativeSpeed?'⏩ ':''}${source.name}`, source.color, false));
   }
 
   function setFrameSource(url, token) {
@@ -1517,6 +1659,7 @@
         frame.onload = onLoad;
         frame.onerror = onError;
         watchdog = window.setTimeout(() => done(false), 8000);
+        frame.dataset.sourceId=activeSource().id;
         frame.src = url;
       }, 45);
     });
@@ -1553,7 +1696,7 @@
     if (!p.active || p.loadToken !== token) return false;
     if (!ok && p.source === AUTO_ID) return trySourceAtIndex(idx + 1, token);
     if (ok) {
-      hidePlayerLoading();
+      hidePlayerLoading(); updateAudioTrackStatus(); schedulePlaybackSpeed();
       if (p.source === AUTO_ID) {
         const note = $('#plSourceName');
         note.textContent = `${state.uiLang === 'hi' ? 'चल रहा है' : 'Playing via'} ${source.name}`;
@@ -1592,7 +1735,7 @@
         renderSourceChips();
         const nextToken = ++p.loadToken;
         trySourceAtIndex(0, nextToken);
-      } else hidePlayerLoading();
+      } else { hidePlayerLoading(); updateAudioTrackStatus(); schedulePlaybackSpeed(); }
     });
   }
 
@@ -1640,6 +1783,11 @@
   function populateAudioLanguages(detail) {
     const select = $('#pcLang');
     if (!select) return;
+    state.player.originalLanguage = String(detail && detail.original_language || '').toLowerCase();
+    if (state.player.originalLanguage === 'hi' && !state.player.audioLang) {
+      state.player.audioLang = 'hi';
+      localStorage.setItem('sv-audio-lang','hi');
+    }
     const found = [];
     const add = (code, label, preference = false) => {
       code = String(code || '').toLowerCase().slice(0, 2);
@@ -1658,7 +1806,7 @@
     if (!allowed.has(state.player.audioLang)) state.player.audioLang = '';
     select.value = state.player.audioLang;
     select.title = t('audioNote');
-    renderPlayerLanguageOptions();
+    renderPlayerLanguageOptions(); updateAudioTrackStatus();
   }
 
   function renderPlayerLanguageOptions() {
@@ -1742,7 +1890,7 @@
     p.episode = episode;
     p.episodes = [];
     p.seasons = [];
-    p.animeVideo = null;
+    p.animeVideo = null; p.originalLanguage=''; p.audioConfirmed=false;
     p.media = media;
     p.tmdbId = tmdbId || null;
     p.animeId = animeId || malId || null;
@@ -1750,6 +1898,7 @@
     p.malId = p.animeSource === 'mal' ? p.animeId : null;
 
     $('#playerModal').classList.remove('hidden');
+    if ($('#pcSpeed')) $('#pcSpeed').value=String(p.speed||1);
     document.body.style.overflow = 'hidden';
     resetPlayerFeed();
     $('#playerTitle').textContent = p.title;
@@ -1835,7 +1984,7 @@
   function restoreMoviePlayerChrome() {
     const sourceRow = $('#sourceChips') && $('#sourceChips').closest('.pc-row');
     if (sourceRow) sourceRow.classList.remove('anime-hidden');
-    $('#pcLang').closest('.pc-row').classList.remove('anime-hidden');
+    $('#pcAudioControl').classList.remove('anime-hidden'); $('#audioTrackStatus').classList.remove('anime-hidden');
     $('#playerAudioBtn').classList.remove('anime-hidden');
     $('#playerLanguagePop').classList.add('hidden');
     renderPlayerLanguageOptions();
@@ -1873,7 +2022,9 @@
     $('#playerExt').href = item.external || item.url || '#';
     const session = p.session;
     frame.onload = () => {
-      setTimeout(() => { if (p.active && p.session === session) hidePlayerLoading(); }, 750);
+      setTimeout(() => {
+        if (p.active && p.session === session) { hidePlayerLoading(); schedulePlaybackSpeed(); }
+      }, 750);
     };
     frame.onerror = () => {
       hidePlayerLoading();
@@ -1890,7 +2041,7 @@
     const p = state.player;
     const sourceRow = $('#sourceChips').closest('.pc-row');
     sourceRow.classList.add('anime-hidden');
-    $('#pcLang').closest('.pc-row').classList.add('anime-hidden');
+    $('#pcAudioControl').classList.add('anime-hidden'); $('#audioTrackStatus').classList.add('anime-hidden');
     $('#playerAudioBtn').classList.add('anime-hidden');
     $('#playerLanguagePop').classList.add('hidden');
     $('#playerNextSrc').classList.add('anime-hidden');
@@ -1906,10 +2057,14 @@
     if (data && data.trailer && data.trailer.id) {
       const trailerId = encodeURIComponent(data.trailer.id);
       const trailerUrl = data.trailer.url || `https://www.youtube.com/watch?v=${trailerId}`;
+      const youtubeEmbed=new URL(data.trailer.embed||`https://www.youtube-nocookie.com/embed/${trailerId}`);
+      youtubeEmbed.searchParams.set('autoplay','1'); youtubeEmbed.searchParams.set('rel','0');
+      youtubeEmbed.searchParams.set('modestbranding','1'); youtubeEmbed.searchParams.set('playsinline','1');
+      youtubeEmbed.searchParams.set('enablejsapi','1');
+      if(location.origin&&location.origin!=='null')youtubeEmbed.searchParams.set('origin',location.origin);
       items.push({
-        kind: 'trailer', label: `${t('trailer')} · YouTube`, title: t('trailer'),
-        url: trailerUrl, external: trailerUrl,
-        embed: data.trailer.embed || `https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
+        kind:'trailer',label:`${t('trailer')} · YouTube`,title:t('trailer'),
+        url:trailerUrl,external:trailerUrl,embed:youtubeEmbed.toString(),
       });
     }
     (data && data.episodes || []).forEach((ep, i) => items.push({
@@ -2011,6 +2166,15 @@
   function recommendationName(it) {
     return titleOf(it) || 'Recommended title';
   }
+  function recommendationReason(item) {
+    const reason=String(item&&item.recommendation_reason||'');
+    if(state.uiLang!=='hi')return reason;
+    if(/Hindi/i.test(reason))return 'इसी शैली के और हिन्दी शीर्षक';
+    if(/Similar/i.test(reason))return 'मिलती-जुलती कहानी और शैली';
+    if(/anime viewers|Related anime/i.test(reason))return 'ऐनिमे दर्शकों की पसंद';
+    if(/same genres|Recommended/i.test(reason))return 'आपके लिए चुना गया';
+    return reason;
+  }
 
   function renderInlineRecommendationCards(items) {
     const wrap = $('#playerInlineRecommendations');
@@ -2028,7 +2192,7 @@
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'inline-rec-card';
-      card.title = recommendationName(it);
+      card.title = [recommendationName(it),recommendationReason(it)].filter(Boolean).join(' — ');
       card.innerHTML = `<img loading="lazy" src="${esc(recommendationThumb(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><span class="inline-rec-name">${esc(recommendationName(it))}</span><span class="inline-rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV' : 'Movie'}</span>`;
       card.onclick = () => playRecommendationItem(it);
       row.appendChild(card);
@@ -2050,7 +2214,8 @@
       const isAnime = isAnimeItem(it);
       const c = document.createElement('div');
       c.className = 'rec-card'; c.tabIndex = 0;
-      c.innerHTML = `<img loading="lazy" src="${esc(recommendationPoster(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="rec-name">${esc(recommendationName(it))}</div><div class="rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV show' : 'Movie'}</div>`;
+      const reason=recommendationReason(it);
+      c.innerHTML=`<img loading="lazy" src="${esc(recommendationPoster(it)||placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="rec-name">${esc(recommendationName(it))}</div><div class="rec-type">${esc(reason||(isAnime?'Anime':mediaOf(it)==='tv'?'TV show':'Movie'))}</div>`;
       c.onclick = () => playRecommendationItem(it);
       c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); } };
       inner.appendChild(c);
@@ -2070,7 +2235,7 @@
     if (!p.tmdbId || p.media === 'anime') return;
     const session = p.session;
     try {
-      const d = await api(`/recommendations?media=${p.media}&id=${p.tmdbId}`, { noCache: true });
+      const d = await api(`/recommendations?media=${p.media}&id=${p.tmdbId}`);
       if (p.session !== session || !p.active) return;
       const recs = (d.results || [])
         .filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i)
@@ -2084,18 +2249,26 @@
 
   async function loadAnimeRecommendations(p) {
     $('#pcRecRow').classList.add('hidden');
-    $('#pcRecRowInner').innerHTML = '';
-    renderInlineRecommendationCards([]);
-    const session = p.session;
-    try {
-      const [animeResult, movieResult] = await Promise.allSettled([api('/anime/top?page=1'), api('/trending')]);
-      if (p.session !== session || !p.active) return;
-      const anime = animeResult.status === 'fulfilled' ? (animeResult.value.data || []).slice(0, 8).map((x) => ({ ...x, kind: 'anime' })) : [];
-      const movies = movieResult.status === 'fulfilled' ? (movieResult.value.results || []).filter(isReleased).slice(0, 6) : [];
-      const recs = [...anime, ...movies].filter((x) => !(isAnimeItem(x) && animeRef(x).id === Number(p.animeId)));
-      renderRecommendationCards(recs.length ? recs : fallbackRecommendations(p));
-    } catch (e) {
-      if (p.session === session && p.active) renderRecommendationCards(fallbackRecommendations(p));
+    $('#pcRecRowInner').innerHTML=''; renderInlineRecommendationCards([]);
+    const session=p.session;
+    try{
+      const recommendationResult=await api(`/anime/recommendations?id=${encodeURIComponent(p.animeId)}&source=${encodeURIComponent(p.animeSource)}`);
+      if(p.session!==session||!p.active)return;
+      let anime=(recommendationResult.data||[]).filter(Boolean).map((item)=>({...item,kind:'anime'}));
+      if(anime.length<8){
+        const fallback=await api('/anime/top?page=1');
+        if(p.session!==session||!p.active)return;
+        anime=[...anime,...(fallback.data||[]).map((item)=>({...item,kind:'anime',recommendation_reason:item.recommendation_reason||'Popular with anime viewers'}))];
+      }
+      const seen=new Set();
+      const recs=anime.filter((item)=>{
+        const ref=animeRef(item); const key=ref.source+':'+ref.id;
+        if(ref.id===Number(p.animeId)||seen.has(key))return false;
+        seen.add(key);return true;
+      }).slice(0,16);
+      renderRecommendationCards(recs.length?recs:fallbackRecommendations(p));
+    }catch(error){
+      if(p.session===session&&p.active)renderRecommendationCards(fallbackRecommendations(p));
     }
   }
 
@@ -2103,7 +2276,7 @@
     hidePlayerLoading();
     const sourceRow = $('#sourceChips').closest('.pc-row');
     sourceRow.classList.add('anime-hidden');
-    $('#pcLang').closest('.pc-row').classList.add('anime-hidden');
+    $('#pcAudioControl').classList.add('anime-hidden'); $('#audioTrackStatus').classList.add('anime-hidden');
     $('#playerAudioBtn').classList.add('anime-hidden');
     $('#playerLanguagePop').classList.add('hidden');
     $('#playerNextSrc').classList.add('anime-hidden');
@@ -2152,6 +2325,24 @@
     p.animeVideo = null;
   }
 
+  const TRUSTED_PLAYER_ORIGINS=new Set(['https://peachify.top','https://apiplayer.ru','https://vidcore.org','https://www.vidcore.org','https://www.youtube-nocookie.com']);
+  window.addEventListener('message',(event)=>{
+    const frame=$('#playerFrame');
+    if(!state.player.active||!frame||event.source!==frame.contentWindow||!TRUSTED_PLAYER_ORIGINS.has(event.origin))return;
+    let payload=event.data;
+    if(typeof payload==='string'){try{payload=JSON.parse(payload);}catch(error){return;}}
+    if(!payload||typeof payload!=='object')return;
+    if(payload.type==='PLAYER_EVENT'&&payload.data){
+      const data=payload.data;
+      if(data.event==='play'||data.event==='loadedmetadata')schedulePlaybackSpeed();
+      updateCurrentProgress(Number(data.currentTime),Number(data.duration));
+    }else if(payload.type==='MEDIA_DATA'&&payload.data){
+      const current=payload.data[String(state.player.tmdbId)]||payload.data[state.player.tmdbId];
+      const progress=current&&current.progress;
+      if(progress)updateCurrentProgress(Number(progress.watched),Number(progress.duration));
+    }else if(payload.event==='ready'||payload.type==='ready')schedulePlaybackSpeed();
+  });
+
   // Browser autoplay policy: videos start muted. Show tap-to-unmute banner
   // and try to unmute the iframe via a fresh load with user gesture.
   function showUnmutePrompt() {
@@ -2175,13 +2366,40 @@
 
   // Language / audio selector
   $('#pcLang').value = state.player.audioLang || '';
-  $('#pcLang').onchange = (e) => {
-    state.player.audioLang = e.target.value;
-    localStorage.setItem('sv-audio-lang', e.target.value);
-    renderPlayerLanguageOptions();
-    loadStream(true);
-    const selected = e.target.options[e.target.selectedIndex];
-    toast(e.target.value ? t('audioPreference', { language:selected?.textContent || e.target.value.toUpperCase() }) : t('audioDefault'));
+  $('#pcLang').onchange = (event) => {
+    state.player.audioLang=event.target.value;
+    localStorage.setItem('sv-audio-lang',event.target.value);
+    renderPlayerLanguageOptions(); updateAudioTrackStatus(); renderSourceChips();
+    if(state.player.media!=='anime'){
+      // Re-run Auto ranking so Hindi originals prefer original-audio sources.
+      state.player.autoIdx=0;
+      loadStream(true);
+    }
+    const selected=event.target.options[event.target.selectedIndex];
+    toast(event.target.value?t('audioPreference',{language:selected?.textContent||event.target.value.toUpperCase()}):t('audioDefault'));
+  };
+  const speedSelect=$('#pcSpeed');
+  speedSelect.value=String(state.player.speed||1);
+  speedSelect.onchange=(event)=>{
+    const speed=Number(event.target.value)||1;
+    state.player.speed=speed;
+    localStorage.setItem('sv-playback-speed',String(speed));
+    if(state.player.media==='anime'){
+      postPlayerSpeed(speed);
+    }else{
+      const source=activeSource();
+      if(state.player.source===AUTO_ID){
+        state.player.autoIdx=0; renderSourceChips(); loadStream(true);
+      }else if(speed!==1&&!(source&&source.remoteSpeed)){
+        // APIPlayer documents parent → player setSpeed. Auto mode ranks it
+        // first while a custom speed is selected.
+        state.player.source=AUTO_ID; state.player.autoIdx=0;
+        renderSourceChips(); loadStream(true);
+      }else{
+        postPlayerSpeed(speed); schedulePlaybackSpeed();
+      }
+    }
+    toast(t('speedApplied',{speed}));
   };
   $('#playerAudioBtn').onclick = (e) => {
     e.stopPropagation();
@@ -2578,6 +2796,7 @@
     uiSelect.onchange=()=>{
       state.uiLang=uiSelect.value === 'hi' ? 'hi' : 'en';
       localStorage.setItem('sv-ui-lang',state.uiLang);
+      if(state.uiLang==='hi'&&!state.player.audioLang){state.player.audioLang='hi';localStorage.setItem('sv-audio-lang','hi');}
       refreshLocalizedContent();
       toast(state.uiLang === 'hi' ? t('interfaceUpdated') : 'Interface changed to English');
       openSettings();
@@ -2605,6 +2824,15 @@
       openSettings();
     };
 
+    const audioSelect=$('#setAudioLang');
+    const audioChoices=[['',t('preferredAudioAuto')],['hi','Hindi'],['en','English'],['ta','Tamil'],['te','Telugu'],['ml','Malayalam'],['bn','Bengali']];
+    audioSelect.innerHTML=audioChoices.map(([code,label])=>`<option value="${code}" ${code===state.player.audioLang?'selected':''}>${esc(label)}</option>`).join('');
+    audioSelect.onchange=()=>{
+      state.player.audioLang=audioSelect.value; localStorage.setItem('sv-audio-lang',audioSelect.value);
+      toast(audioSelect.value?t('audioPreference',{language:audioSelect.options[audioSelect.selectedIndex].textContent}):t('audioDefault'));
+      if(state.player.active){populateAudioLanguages(state.player.details||{});renderSourceChips();loadStream(true);}
+    };
+
     await ensureCountries();
     const countrySelect=$('#setCountry');
     countrySelect.innerHTML=`<option value="">${esc(t('autoDetect'))}</option>`+state.countries.map(c=>`<option value="${c.code}" ${c.code===state.country?'selected':''}>${esc(c.name)}</option>`).join('');
@@ -2623,7 +2851,7 @@
 
     const sourceSelect = $('#setSource');
     sourceSelect.innerHTML = `<option value="${AUTO_ID}" ${state.player.source===AUTO_ID?'selected':''}>⚡ ${esc(t('autoBest'))}</option>` +
-      orderedSources().map(source=>`<option value="${source.id}" ${source.id===state.player.source?'selected':''}>${esc(source.name)}</option>`).join('');
+      orderedSources(true).map(source=>`<option value="${source.id}" ${source.id===state.player.source?'selected':''}>${esc(source.name)}</option>`).join('');
     sourceSelect.onchange = () => {
       state.player.source = sourceSelect.value;
       localStorage.setItem('sv-source',sourceSelect.value);
@@ -2955,7 +3183,7 @@
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js?v=10.0.0').catch(() => {});
+      navigator.serviceWorker.register('/sw.js?v=11.0.0').catch(() => {});
     }, { once: true });
   }
 

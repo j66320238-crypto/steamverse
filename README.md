@@ -1,51 +1,43 @@
-# StreamVerse v10
+# StreamVerse v11
 
-Render-ready movies, TV, anime and public Live TV web app. Frontend is vanilla HTML/CSS/JS; backend uses Node.js built-ins only.
+Render-ready movies, TV, anime and public Live TV web app. Vanilla HTML/CSS/JS frontend with a zero-dependency Node backend.
 
-## What was fixed
+## v11 improvements
 
-- **Hindi now actually works:** Settings has separate **Website Language** and **Titles & Description Language** controls. Menus, buttons, rows, errors and major player text switch to हिन्दी.
-- **Anime 404 fixed:** AniList and MyAnimeList IDs are no longer mixed. AniList is primary, Jikan is fallback, official YouTube trailers play in-app, and licensed episode/provider links open correctly.
-- **Live TV fixed:** removed dead channels, added tested Indian/Bihar and international public streams, rewrote nested HLS playlists/segments, added retry/recovery and lazy-loaded HLS.js.
-- **Better audio controls:** Hindi is a provider preference (not a fake guaranteed track). Live TV has optional **Clear audio** normalization. Movie/TV iframe audio quality still depends on the selected provider.
-- **Smoother UI:** repaired mobile menu/search, preloaded hero images, responsive cards, desktop row arrows, reduced mobile blur/overlays and less aggressive scroll snapping.
-- **Lower API usage:** server LRU cache, stale fallback, in-flight request coalescing, browser cache, search cancellation and lazy home rows.
-- **Safer Render backend:** no hardcoded TMDB key, no public generic TMDB proxy, protected admin cache, per-IP limits, restricted HLS hosts, DNS/private-IP checks, response-size caps and security headers.
-- **Web optimized:** Brotli/Gzip, ETags, responsive TMDB images, PWA manifest/service worker and deferred Live TV library.
+- **Hindi Originals:** dedicated home row, clear “Hindi original” badges and automatic Hindi preference for titles whose TMDB `original_language` is `hi`.
+- **Hindi dub request:** compatible providers receive an actual Hindi audio/dub request. A separate **Try Hindi-dub source** button is shown for non-Hindi titles.
+- **Playback speed:** 0.5×, 0.75×, 1×, 1.25×, 1.5× and 2× control. Auto mode switches to a provider with documented remote speed control when needed. Anime YouTube trailers use the YouTube player command.
+- **Smart dynamic search:** understands genre/language/type intent. Searching `comedy`, `Hindi comedy`, `latest action movies`, `horror TV`, `anime comedy`, etc. returns category results rather than only titles containing those words.
+- **Search filters:** instant All / Movies / TV / Anime result filters and a smart-intent explanation banner.
+- **Better recommendations:** combines TMDB recommendations, similar titles, genre/language discovery and popularity scoring. Hindi titles prioritize quality Hindi recommendations. Anime uses AniList’s title-specific recommendation graph.
+- **Real continue progress:** cooperative providers can send playback time; fake random percentages were removed.
+- **Global audio preference:** Settings now has a separate Preferred Audio control.
+- Existing v10 improvements remain: Hindi interface, fixed anime IDs, tested Live TV, HLS rewriting, API caching/rate limits, Brotli/Gzip, PWA, security headers and Render Blueprint.
+
+## Important audio limitation
+
+TMDB provides metadata and original language, not a verified per-provider list of dubbed audio tracks. The app can reliably identify **original Hindi** content and can request Hindi from compatible players, but it cannot create a Hindi dub that the selected provider does not carry. The player displays this honestly instead of falsely marking every title as Hindi-ready.
 
 ## Run locally
 
-Node.js 18.18+ is required.
-
 ```bash
-cp .env.example .env
-# Put your TMDB v3 API key in .env, then export it in your shell.
-# Linux/macOS example:
 export TMDB_KEY="your_tmdb_v3_key"
 npm start
 ```
 
 Open <http://localhost:3000>.
 
-> `npm install` is not required at runtime; there are zero npm dependencies.
-
-## Tests
+## Test
 
 ```bash
 npm run check
 npm test
 ```
 
-## Render deployment
+## Render
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)**. A ready-to-use `render.yaml` is included.
+See **[DEPLOYMENT.md](DEPLOYMENT.md)**. `render.yaml` is included; add `TMDB_KEY` as a Render secret.
 
-Required secret:
+## Playback note
 
-- `TMDB_KEY` — TMDB **v3 API key**, created at <https://www.themoviedb.org/settings/api>
-
-Optional variables are documented in `.env.example`.
-
-## Important playback note
-
-StreamVerse does not host video files. Anime playback uses official YouTube/AniList metadata and licensed provider links. Movie/TV embed availability, audio tracks and media quality are controlled by the selected third-party provider and can vary by title and region. Use only sources you are legally allowed to access.
+StreamVerse does not host media files. Third-party iframe providers control their own catalogues, audio tracks, availability and advertisements. Use only sources you are legally allowed to access.

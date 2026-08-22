@@ -1,6 +1,6 @@
 'use strict';
-const VERSION = 'streamverse-shell-v10.0.0';
-const SHELL = ['/', '/index.html', '/style.css?v=10.0.0', '/app.js?v=10.0.0', '/manifest.webmanifest'];
+const VERSION = 'streamverse-shell-v11.0.0';
+const SHELL = ['/', '/index.html', '/style.css?v=11.0.0', '/app.js?v=11.0.0', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
