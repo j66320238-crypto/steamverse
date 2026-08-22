@@ -13,7 +13,7 @@
 
   // Single source of truth for cache busting. Must match the ?v= query strings
   // in index.html and the VERSION/SHELL constants in sw.js.
-  const APP_VERSION = '12.4.0';
+  const APP_VERSION = '12.5.0';
 
   // Earlier builds could leave "hide recommendations" stuck on after a bug,
   // and users had no obvious way to tell it apart from recommendations simply
@@ -1786,6 +1786,33 @@
     state.player.nativeSkip = null;
     state.player.nativeAudio = [];
     state.player.nativeProvider = '';
+    // The selects can still be holding this stream's `lvl:N` / `aud:N` options.
+    // Those indexes die with the Hls instance, so leaving them in place is what
+    // made the menus look empty/broken after any click. Restore static options.
+    resetNativeSelectOptions();
+  }
+
+  // Put #pcQuality and #pcAnimeAudio back to their provider-independent
+  // options after a native stream goes away, preserving the user's choice
+  // where it still makes sense.
+  function resetNativeSelectOptions() {
+    const quality = $('#pcQuality');
+    if (quality && [...quality.options].some((o) => o.value.startsWith('lvl:'))) {
+      const saved = state.player.quality || localStorage.getItem('sv-quality') || 'auto';
+      const labels = { auto: t('qualityAuto') || 'Auto', 2160: '4K · 2160p', 1080: 'Full HD · 1080p', 720: 'HD · 720p', 480: 'SD · 480p', 360: 'Low · 360p' };
+      quality.innerHTML = QUALITY_VALUES
+        .map((v) => `<option value="${v}">${esc(labels[v] || v)}</option>`).join('');
+      quality.value = QUALITY_VALUES.includes(saved) ? saved : 'auto';
+      quality.disabled = false;
+    }
+    const audio = $('#pcAnimeAudio');
+    if (audio && [...audio.options].some((o) => o.value.startsWith('aud:'))) {
+      audio.innerHTML = `<option value="sub">${esc(t('animeSub') || 'Subbed (original)')}</option>` +
+        `<option value="dub">${esc(t('animeDub') || 'Dubbed')}</option>`;
+      audio.value = state.player.animeDub ? 'dub' : 'sub';
+      audio.disabled = false;
+      $('#pcAnimeAudioControl')?.removeAttribute('data-note');
+    }
   }
 
   function showNativePlayer() {
@@ -1797,6 +1824,14 @@
   function showIframePlayer() {
     destroyNativePlayer();
     $('#playerFrame')?.classList.remove('hidden');
+    // Falling back to an embed must never leave anime without its controls:
+    // SUB/DUB still works (it reloads the stream) and quality is marked as
+    // owned by the embedded player rather than being hidden outright.
+    if (state.player.media === 'anime') {
+      $('#pcAnimeAudioControl')?.classList.remove('hidden', 'anime-hidden');
+      syncAnimeAudioControl();
+      updateQualityControlState();
+    }
   }
 
   // Populate #pcQuality from the manifest's real levels and switch on demand.
@@ -2086,10 +2121,17 @@
           nativeHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => syncNativeAudioTracks());
         }
         nativeHls.on(Hls.Events.LEVEL_SWITCHED, () => updateNativeQualityBadge());
+        // Recover from transient faults, but only a bounded number of times:
+        // an unbounded retry loop just stalls until the 15 s guard fires and
+        // silently dumps the user on an iframe with no explanation.
+        let recoveries = 0;
         nativeHls.on(Hls.Events.ERROR, (evt, info) => {
           if (!info || !info.fatal) return;
-          if (info.type === Hls.ErrorTypes.NETWORK_ERROR) { try { nativeHls.startLoad(); return; } catch (e) {} }
-          if (info.type === Hls.ErrorTypes.MEDIA_ERROR) { try { nativeHls.recoverMediaError(); return; } catch (e) {} }
+          if (recoveries < 3) {
+            recoveries++;
+            if (info.type === Hls.ErrorTypes.NETWORK_ERROR) { try { nativeHls.startLoad(); return; } catch (e) {} }
+            if (info.type === Hls.ErrorTypes.MEDIA_ERROR) { try { nativeHls.recoverMediaError(); return; } catch (e) {} }
+          }
           finish(false);
         });
         nativeHls.attachMedia(video);
@@ -2259,7 +2301,20 @@
       syncNativeQualityOptions();
       return;
     }
-    if (state.player.media === 'anime') { wrap.classList.add('anime-hidden'); return; }
+    // Anime on an iframe source: the control stays VISIBLE (hiding it is what
+    // made "no quality option" appear in anime) but is honestly marked as
+    // driven by the embedded player, which owns its own quality menu.
+    if (state.player.media === 'anime') {
+      wrap.classList.remove('anime-hidden');
+      wrap.classList.add('ctl-unsupported');
+      select.disabled = true;
+      const note = state.uiLang === 'hi'
+        ? 'इस सोर्स की क्वालिटी वीडियो के अंदर वाले मेन्यू से बदलें।'
+        : 'Use the quality menu inside the video for this source.';
+      select.title = note;
+      wrap.dataset.note = note;
+      return;
+    }
     wrap.classList.remove('anime-hidden');
     const source = activeSource();
     // Auto can always move to a quality-capable provider, so treat it as capable.
