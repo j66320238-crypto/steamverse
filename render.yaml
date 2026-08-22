@@ -2,11 +2,20 @@ services:
   - type: web
     name: streamverse
     runtime: node
-    buildCommand: ""
-    startCommand: "node server.js"
+    plan: free
+    region: singapore
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: 22.18.0
       - key: TMDB_KEY
         sync: false
       - key: WATCH_REGION
         value: IN
+      - key: ADMIN_CACHE_TOKEN
+        generateValue: true
+      - key: CACHE_MAX_ITEMS
+        value: 900

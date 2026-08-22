@@ -1077,3 +1077,148 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .player-overlay .player-feed{width:100%!important;height:100%!important}
 .player-overlay .feed-page-head{display:flex!important;align-items:flex-end!important;gap:16px!important}
 .player-overlay .feed-page-head>div{display:flex!important;flex-direction:column!important;gap:5px!important}
+
+/* Refined recommendation rail: YouTube-like landscape thumbnails instead of
+   tall poster blocks covering the video. */
+.player-overlay .player-top{z-index:30!important;min-height:70px!important;padding-top:max(14px,env(safe-area-inset-top))!important;padding-left:max(18px,env(safe-area-inset-left))!important;padding-right:max(18px,env(safe-area-inset-right))!important;align-items:flex-start!important}
+.player-overlay .player-title{padding-top:7px!important;font-size:15px!important;line-height:1.25!important}
+.player-inline-recommendations{bottom:58px!important;padding:10px 12px 13px!important;border-radius:14px!important;background:linear-gradient(180deg,rgba(9,10,18,.84),rgba(7,8,14,.97))!important;box-shadow:0 16px 42px rgba(0,0,0,.5)!important}
+.inline-rec-head{margin-bottom:7px!important}
+.inline-rec-row{gap:10px!important}
+.inline-rec-card{flex:0 0 174px!important;border-radius:9px!important}
+.inline-rec-card img{aspect-ratio:16/9!important;object-fit:cover!important}
+.inline-rec-name{font-size:11px!important;padding:6px 7px 3px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.inline-rec-type{padding:0 7px 7px!important;font-size:8px!important;color:#8f9bb0!important}
+@media(max-width:760px){
+  .player-overlay .player-top{min-height:62px!important;padding-left:12px!important;padding-right:12px!important}
+  .player-overlay .player-title{font-size:13px!important;padding-top:5px!important}
+  .player-inline-recommendations{bottom:64px!important;padding:8px 8px 10px!important}
+  .inline-rec-card{flex-basis:142px!important}
+  .inline-rec-name{font-size:10px!important}
+}
+
+/* Custom audio-language menu sits in our player chrome. Cross-origin embed
+   menus cannot be edited safely, so this is the reliable site-level control. */
+.player-audio-btn{min-width:46px!important;padding:0 8px!important;font-size:11px!important;font-weight:900!important;letter-spacing:-.04em}
+.player-language-pop{position:absolute;top:76px;right:max(18px,env(safe-area-inset-right));z-index:45;width:min(290px,calc(100vw - 28px));padding:10px;border:1px solid rgba(255,255,255,.18);border-radius:15px;background:rgba(9,10,17,.97);box-shadow:0 22px 65px rgba(0,0,0,.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);animation:pop .22s var(--ease)}
+.player-language-head{display:flex;align-items:center;justify-content:space-between;padding:2px 3px 9px;color:#fff;font-size:12px;font-weight:900;border-bottom:1px solid rgba(255,255,255,.1)}
+.player-language-head button{width:24px;height:24px;border-radius:50%;color:#aeb7c8;font-size:18px;line-height:1}
+.player-language-head button:hover{background:rgba(255,255,255,.12);color:#fff}
+.player-language-options{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:260px;overflow-y:auto}
+.player-language-option{display:flex;align-items:center;gap:9px;width:100%;padding:10px 9px;border-radius:9px;color:#d9deea;text-align:left;font-size:12.5px;background:transparent}
+.player-language-option span{color:#7c879b;font-size:13px;width:16px;text-align:center}
+.player-language-option b{flex:1;font-weight:700}
+.player-language-option i{font-style:normal;color:#62e38a;font-weight:900}
+.player-language-option:hover,.player-language-option.active{background:rgba(56,189,248,.13);color:#fff}
+.player-language-option.active span{color:#38bdf8}
+.player-language-note{margin:9px 3px 2px;color:#7f8ba0;font-size:10.5px;line-height:1.45}
+@media(max-width:760px){
+  .player-language-pop{top:64px;right:10px;width:min(280px,calc(100vw - 20px))}
+  .player-audio-btn{min-width:42px!important;font-size:10px!important}
+}
+
+/* Keep source switching away from the iframe's bottom control bar. */
+.player-overlay .player-nextsrc{top:78px!important;bottom:auto!important;left:16px!important;right:auto!important;z-index:33!important}
+@media(max-width:760px){.player-overlay .player-nextsrc{top:70px!important;left:10px!important;right:auto!important;padding:7px 11px!important;font-size:11px!important}}
+
+/* Never put the custom gesture catcher over the provider's native iframe
+   controls. The visible See all ↑ / swipe hint still opens Up Next safely. */
+.player-swipe-zone{display:none!important;pointer-events:none!important}
+.player-overlay .player-frame{pointer-events:auto!important}
+.player-overlay .feed-swipe-hint{pointer-events:auto;cursor:pointer;bottom:116px!important}
+.player-overlay .unmute-banner{top:78px!important;bottom:auto!important;left:auto!important;right:16px!important}
+@media(max-width:760px){
+  .player-overlay .feed-swipe-hint{bottom:112px!important}
+  .player-overlay .unmute-banner{top:112px!important;right:10px!important}
+}
+
+/* ============================================================
+   StreamVerse v10 — performance, navigation and language polish
+   ============================================================ */
+.skip-link{
+  position:fixed;left:14px;top:10px;z-index:10000;padding:10px 14px;border-radius:9px;
+  background:#fff;color:#09090f;font-size:13px;font-weight:800;
+  transform:translateY(-160%);transition:transform .18s ease;
+}
+.skip-link:focus{transform:none;outline:3px solid #22d3ee}
+.noscript{margin:90px auto 20px;max-width:680px;padding:16px 20px;border:1px solid #ef4444;border-radius:12px;color:#fff;background:#451a1a;text-align:center}
+
+/* The mobile menu is a real panel below the fixed navigation bar. */
+.mobile-menu{
+  position:absolute;top:100%;left:0;right:0;width:100%;
+  background:rgba(7,7,12,.96);border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  box-shadow:0 18px 42px rgba(0,0,0,.42);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+.navbar.menu-open{background:rgba(7,7,12,.96);box-shadow:0 1px 0 var(--border)}
+body.light .mobile-menu,body.light .navbar.menu-open{background:rgba(255,255,255,.97)}
+
+.row-head{position:relative}
+.row-scroll-controls{display:flex;align-items:center;gap:6px;margin-left:10px;flex-shrink:0}
+.row-scroll-controls button{
+  width:32px;height:32px;display:grid;place-items:center;border-radius:50%;
+  border:1px solid var(--border);background:var(--card);color:var(--text);
+  font-size:22px;line-height:1;transition:background .18s,transform .18s,opacity .18s;
+}
+.row-scroll-controls button:hover:not(:disabled){background:var(--card-hover);transform:translateY(-1px)}
+.row-scroll-controls button:disabled{opacity:.28;cursor:default}
+.row-count,.see-all{margin-left:auto}
+
+#liveAudioEnhance.active,[aria-pressed="true"]#liveAudioEnhance{
+  color:#b8ffd0;border-color:rgba(70,211,105,.55);background:rgba(70,211,105,.15);
+}
+
+html[lang="hi"] body{
+  font-family:Inter,"Noto Sans Devanagari","Nirmala UI",Mangal,system-ui,sans-serif;
+  letter-spacing:0;
+}
+html[lang="hi"] .row-title,html[lang="hi"] .hero-title,html[lang="hi"] .modal-title{letter-spacing:0;line-height:1.16}
+html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
+
+/* A proximity snap keeps the vertical player feed intentional without
+   fighting normal trackpad/touch scrolling. */
+.player-feed{scroll-snap-type:y proximity}
+.player-page{scroll-snap-stop:normal}
+.card-poster{content-visibility:auto}
+
+@media(max-width:760px){
+  .row-scroll-controls{display:none}
+  .bg-glow{opacity:.45}
+  .navbar.scrolled{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .modal-overlay,.brave-modal-overlay{backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .player-inline-recommendations{display:none!important}
+  .player-stage.has-inline-recs .feed-swipe-hint{opacity:1;pointer-events:auto;animation:feedHint 2.2s ease-in-out infinite}
+  .player-overlay .feed-swipe-hint{bottom:24px!important}
+  .card-row{gap:11px;padding-left:1px;padding-right:1px;scroll-padding-left:1px}
+  .row-section{margin-top:32px}
+  .hero-meta{gap:10px}
+  .hero-content{margin-left:0}
+}
+
+@media(max-width:600px){
+  .search-wrap.open{
+    position:fixed;left:12px;right:12px;top:calc(var(--nav-h) + 8px);z-index:130;
+    width:auto!important;margin:0;padding:7px;border:1px solid var(--border-strong);border-radius:16px;
+    background:rgba(10,10,17,.97);box-shadow:var(--shadow-sm);overflow:visible;
+  }
+  body.light .search-wrap.open{background:rgba(255,255,255,.98)}
+  .search-wrap.open .search-ic{left:19px}
+  .search-wrap.open .search-clear{right:14px}
+  .search-wrap.open input{height:42px;padding-left:38px}
+  .brand-name{max-width:118px;overflow:hidden;text-overflow:ellipsis}
+  .footer{padding-left:18px;padding-right:18px}
+}
+
+@media(max-width:420px){
+  .nav-actions{gap:4px}
+  #themeBtn{display:none}
+  .hero-nav .hero-dots{display:none}
+  .hero-nav{bottom:48px}
+  .player-top-actions{gap:4px}
+  .player-btn,.modal-close.light{width:34px!important;height:34px!important}
+}
+
+@media(prefers-reduced-transparency:reduce){
+  .navbar.scrolled,.mobile-menu,.modal-overlay,.brave-modal-overlay,.player-language-pop{
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  }
+}

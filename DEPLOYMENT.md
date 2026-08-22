@@ -1,130 +1,105 @@
-# 🚀 StreamVerse — Deploy Guide (Public Link + 24/7 Online)
+# Render par StreamVerse deploy karna
 
-Sabse easy tarika: **Render.com** (free, public link milta hai, GitHub se auto-deploy).
+## 1) TMDB key banao
 
----
+1. <https://www.themoviedb.org/> par account banao.
+2. **Settings → API → Create** kholo.
+3. **API Key (v3 auth)** copy karo.
+4. Key ko GitHub files ya `app.js` me kabhi mat daalna. Render Secret me hi rakhna.
 
-## Step 1 — Code GitHub par daalo
+## 2) GitHub par project upload karo
 
-1. https://github.com par free account banao
-2. **New repository** → naam do `streamverse` → Create
-3. Apne computer me `streamverse` folder ke andar ye commands chalao:
+Naya repository bana kar is folder ki saari files upload/push karo. `.env` upload mat karna; `.gitignore` usse block karta hai.
 
 ```bash
 git init
 git add .
-git commit -m "StreamVerse v2"
+git commit -m "StreamVerse v10"
 git branch -M main
-git remote add origin https://github.com/APNA_USERNAME/streamverse.git
+git remote add origin https://github.com/YOUR_USERNAME/streamverse.git
 git push -u origin main
 ```
 
-> Agar git install nahi hai to repo me **Add file → Upload files** se saari files upload
-> kar do (folder structure waisa hi rakho: `server.js`, `package.json`, `public/...`).
+## 3) Sabse aasaan: Render Blueprint
 
----
+1. Render dashboard me **New → Blueprint** kholo.
+2. Apna GitHub repository select karo.
+3. Render included `render.yaml` padh lega.
+4. `TMDB_KEY` maange to apni **v3 API key** paste karo.
+5. **Apply / Deploy** dabao.
 
-## Step 2 — Render par deploy (2 minute)
+`render.yaml` pehle se ye set karta hai:
 
-1. https://render.com → **GitHub se sign in** karo
-2. **New → Web Service** → apna `streamverse` repo select karo
-3. Settings aise rakho:
+- Node runtime
+- Singapore region
+- `npm ci --omit=dev`
+- `npm start`
+- `/api/health` health check
+- generated admin-cache secret
+- India watch region
 
-| Setting | Value |
+## Manual Web Service option
+
+Agar Blueprint use nahi karna:
+
+| Render setting | Value |
 |---|---|
-| Name | `streamverse` |
-| Branch | `main` |
-| Region | Singapore (India ke closest) |
-| Runtime | `Node` |
-| Build Command | *(khaali chhod do)* |
-| Start Command | `node server.js` |
-| Plan | **Free** |
+| Runtime | Node |
+| Region | Singapore |
+| Build Command | `npm ci --omit=dev` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/health` |
+| Environment variable | `TMDB_KEY` = your v3 key |
+| Optional | `WATCH_REGION=IN` |
 
-4. (Recommended) **Environment Variables** me add karo: `TMDB_KEY` = apni free TMDB key
-   (themoviedb.org → Settings → API). `render.yaml` bhi repo me diya hai; Blueprint import karoge to `TMDB_KEY` ko Render Secret me fill karo.
-5. **Deploy Web Service** dabao.
+## Deploy ke baad test
 
-✅ 1–2 minute me public link ready:
-**`https://streamverse.onrender.com`** — ye link kisi ko bhi bhej sakte ho!
+In URLs ko kholo:
 
-Ab jab bhi GitHub me naya code push karoge, site **auto-update** ho jayegi.
-
----
-
-## Step 3 — 24/7 online rakho (free)
-
-Render ka free plan 15 minute idle rehne par "so" jaata hai (agle visitor par ~30s me
-khud jaag jaata hai). Hamesha awake rakhne ke liye:
-
-1. https://uptimerobot.com → free account
-2. **Add New Monitor**:
-   - Monitor Type: **HTTP(s)**
-   - Friendly Name: `StreamVerse`
-   - URL: `https://streamverse.onrender.com/api/health`
-   - Interval: **5 minutes**
-3. Save. Bas — ye har 5 min me ping karega aur site 24/7 awake rahegi ✅
-
----
-
-## 🔄 Backup deploy options
-
-| Platform | Free? | Notes |
-|---|---|---|
-| **Koyeb.com** | Haan | Render jaisa hi: New App → repo → Start command `node server.js` |
-| **Railway.app** | Trial credits | New Project → Deploy from GitHub, bohot fast |
-| **Fly.io** | Free tier | Thoda technical (CLI chahiye) |
-| **Apna VPS (Oracle Cloud Always Free)** | Haan, truly 24/7 | Neeche dekho |
-
-### VPS par (advanced, truly 24/7)
-```bash
-# Ubuntu server par:
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs git
-git clone https://github.com/APNA_USERNAME/streamverse.git
-cd streamverse
-sudo npm i -g pm2
-pm2 start server.js --name streamverse
-pm2 startup && pm2 save     # restart ke baad bhi chalta rahega
+```text
+https://YOUR-SITE.onrender.com/api/health
+https://YOUR-SITE.onrender.com/
 ```
-Server ka IP:3000 par site chalegi (firewall me port 3000 kholna).
 
-### Custom domain (optional)
-Render → Web Service → **Settings → Custom Domain** → apna domain (GoDoodle/Namecheap se
-khareeda hua) daalo. Free SSL automatic mil jaata hai.
+Health JSON me ye hona chahiye:
 
----
+```json
+{"ok":true,"version":"10.0.0","tmdb_configured":true}
+```
 
-## 🧪 Deploy ke baad test karo
-- `https://APNI-SITE/api/health` → `{"ok":true,...}` aana chahiye
-- Home page kholo → trending row load honi chahiye
-- Koi bhi movie card → **Play Trailer** → YouTube trailer chalna chahiye
-- Search "naruto" → movies + anime dono aane chahiye
+Phir check karo:
 
-## ⚠️ Common problems
-| Problem | Fix |
-|---|---|
-| `Application failed to respond` | Start Command sahi hai? `node server.js` |
-| `Cannot find module` | `package.json` repo me upload hua hai? |
-| Rows "Load nahi hua" dikhate hain | TMDB key limit — apna free `TMDB_KEY` env var lagao |
-| Preview blank | Browser me direct link kholo, in-app iframe me network nahi hota |
+1. Home rows load hon.
+2. Settings → **Website Language → हिन्दी** se poora interface Hindi ho.
+3. Settings → **Titles & Description Language → Hindi** se TMDB ka available Hindi metadata aaye.
+4. Anime me Naruto jaisa title khol kar official trailer/provider links check karo.
+5. Live TV me Aaj Tak, DD Bihar ya News18 Bihar Jharkhand check karo.
 
----
+## API limit bachane ke liye kya laga hai
 
-## 📡 Live TV + Deploy note
-- Live TV ka player pehle **direct stream** try karta hai; CORS block hone par **server proxy**
-  (`/api/hls`) se chalata hai; wo bhi fail ho to **next server** par auto-switch.
-- Render free plan par proxy streaming bandwidth use karta hai — zyada traffic ho to
-  Koyeb/VPS better rahega. Movies/anime/trailers par koi asar nahi.
-- Naye v9 me Settings (⚙️) me **language, country (IP auto-detect), data usage,
-  API health 🟢🔴** — sab milta hai.
+- identical requests ek hi upstream call me merge hote hain;
+- server LRU + stale cache;
+- browser cache and cancelled old searches;
+- lower rows viewport ke paas aane par hi load hoti hain;
+- generic public TMDB proxy hata diya gaya;
+- `/api` aur HLS per-IP limits;
+- HLS proxy sirf approved public channel hosts ko allow karta hai.
 
-## Anime video API
-`/api/anime/videos?id=20` returns the official AniList trailer and licensed streaming links. AniList is primary and Jikan is the fallback, so Anime rows do not depend on the old TMDB title-matching workaround.
+Render Free service idle hone par sleep/cold-start kar sakti hai. Ye normal hai. Artificial keep-alive monitor lagane se pehle Render ke current plan rules check karein.
 
-## UI and browser recommendation
-The site shows a one-time Brave/ad-blocker recommendation popup. It has **Don't show again** and **Confirm** controls, detects Brave, and opens the correct official Brave download page or mobile store. Users on Chrome, Firefox, Edge and Safari can keep their browser and use a trusted content blocker.
+## Common problems
 
-The footer includes the developer contact: [Telegram @botdeveloper08](https://t.me/botdeveloper08).
+### `tmdb_configured: false`
+Render → Service → Environment me `TMDB_KEY` add karo aur redeploy karo.
 
-## After deploying a new ZIP
-The HTML uses versioned `style.css?v=9.3.0` and `app.js?v=9.3.0` URLs so Render/browser cache cannot keep the old half-height player. If an old tab is open, do one hard refresh (`Ctrl + Shift + R`).
+### Hindi title English hi hai
+Us title ka Hindi translation TMDB par available nahi hoga. Website buttons phir bhi Hindi me rahenge; dono language controls alag hain.
+
+### Hindi audio nahi mil raha
+Audio preference provider ko bheji jaati hai, lekin har title ka Hindi dub nahi hota. Video ke andar provider ka audio menu bhi check karo. Parent site cross-origin iframe ke audio tracks ko force nahi kar sakti.
+
+### Anime full episode in-app nahi khulta
+Official YouTube trailer in-app chalta hai. Licensed AniList/Crunchyroll/Netflix episode links provider restrictions ki wajah se new tab me khulte hain.
+
+### Live channel kabhi unavailable ho
+Public HLS URLs broadcaster badal sakta hai. `LIVE_CHANNELS` me sirf trusted host add karo aur zarurat par `HLS_ALLOWED_HOSTS` env variable update karo.

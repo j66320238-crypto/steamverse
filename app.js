@@ -1,8 +1,7 @@
 /* ============================================================
-   StreamVerse v9.3 — client
-   • Works with or without the Node server (direct TMDB/Jikan fallback)
-   • 8 embed sources (VidSrc, Embed.su, MultiEmbed, AutoEmbed, SmashyStream,
-     VidSrc.xyz, 2Embed, Streambug) with season/episode picker
+   StreamVerse v10.0 — client
+   • Same-origin Node/Render API keeps credentials and quota off the browser
+   • Multiple fallback embed sources with season/episode picker
    • Playlists (multiple, named) — Netflix-style
    • Live TV with custom HLS.js player (speed + quality controls, PiP, mute)
    • K-Drama / Asian drama category
@@ -14,15 +13,16 @@
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const IMG = 'https://image.tmdb.org/t/p/w500';
+  const IMG = 'https://image.tmdb.org/t/p/w342';
+  const IMG_LARGE = 'https://image.tmdb.org/t/p/w500';
   const BACKDROP = 'https://image.tmdb.org/t/p/w1280';
   const CAST_IMG = 'https://image.tmdb.org/t/p/w185';
 
   const TMDB_KEY = ''; // Keep the production key on Render as TMDB_KEY; never send it to the browser
   const TMDB_BASE = 'https://api.themoviedb.org/3';
   const ANILIST_GRAPHQL = 'https://graphql.anilist.co';
-  const ANILIST_VIDEO_QUERY = `query ($idMal: Int) {
-    Media(idMal: $idMal, type: ANIME) {
+  const ANILIST_VIDEO_QUERY = `query ($id: Int, $idMal: Int) {
+    Media(id: $id, idMal: $idMal, type: ANIME) {
       id idMal title { romaji english native } coverImage { extraLarge large } bannerImage
       trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
     }
@@ -44,12 +44,158 @@
     ar: 'Arabic', tr: 'Turkish', th: 'Thai', it: 'Italian', nl: 'Dutch', pl: 'Polish',
   };
 
+  /* ================= INTERFACE LANGUAGE =================
+     TMDB's content locale and the website interface are separate. Hindi now
+     translates the actual UI instead of only asking TMDB for a Hindi title. */
+  const UI_LANGS = [['en', 'English'], ['hi', 'हिन्दी']];
+  const I18N = {
+    en: {
+      skipContent: 'Skip to content', home: 'Home', movies: 'Movies', tvShows: 'TV Shows', anime: 'Anime',
+      drama: 'Drama', liveTV: 'Live TV', playlists: 'Playlists', myList: 'My List', myPlaylists: 'My Playlists',
+      searchPlaceholder: 'Search movies, shows, anime…', watchNow: 'Watch Now', moreInfo: 'More Info',
+      continueWatching: 'Continue Watching', trendingNow: 'Trending Now', popularMovies: 'Popular Movies',
+      topRatedMovies: 'Top Rated Movies', popularTV: 'Popular TV Shows', topRatedTV: 'Top Rated TV',
+      asianDramas: 'K-Drama & Asian Dramas', seeAll: 'See all →', topAnime: 'Top Anime', airingNow: 'Airing Now',
+      comingSoon: 'Coming Soon', horrorPicks: 'Horror Picks', comedyNights: 'Comedy Nights',
+      actionAdventure: 'Action & Adventure', browse: 'Browse', back: 'Back', loadMore: 'Load more',
+      noTitles: 'No titles found. Try something else.', newPlaylist: 'New Playlist', backPlaylists: '‹ Back to playlists',
+      rename: 'Rename', liveSub: '24/7 public channels — availability can change by region.', watchingNow: 'watching now',
+      nowPlaying: 'Now Playing', audio: 'Audio', preferredAudio: 'Preferred audio',
+      audioNote: 'Audio tracks depend on the selected provider. Use the provider player menu if your preference is unavailable.',
+      swipeRecommendations: 'Swipe up for recommendations', recommended: 'Recommended for you', seeAllUp: 'See all ↑',
+      swipeDown: 'Swipe down to return', reload: 'Reload', youMayLike: 'You may also like', episodes: 'Episodes',
+      source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio',
+      settings: 'Settings', interfaceLanguage: 'Interface Language',
+      interfaceLanguageNote: 'Changes website buttons, menus and messages.', contentLanguage: 'Titles & Description Language', contentLanguageNote: 'Titles and descriptions use this language where a translation exists.',
+      countryNote: 'Used for official streaming options under the player.', sourceNote: 'Default source when you tap Watch.',
+      emptyMyList: 'Your list is empty. Add a title to save it here.', emptyPlaylist: 'This playlist is empty. Browse and add a title.',
+      footerTagline: 'Movies · TV Shows · Anime · Dramas · Live TV · Playlists', unmuteHint: 'If sound is muted, use the speaker button inside the video.',
+      sourceHint: '(if one does not work, try another)', openSource: 'Open source',
+      countryRegion: 'Country / Region', autoDetect: 'Auto-detect', preferredSource: 'Preferred player source',
+      popupProtection: 'Popup & ad protection', theme: 'Theme', cachedData: 'Cached data (this browser)',
+      resetStats: 'Reset stats', clearBrowserCache: 'Clear browser cache',
+      movie: 'Movie', film: 'Film', series: 'Series', featured: 'Featured', match: 'Match', new: 'New',
+      watch: 'Watch', details: 'Details', soon: 'Soon', retry: 'Retry', couldNotLoad: 'Could not load right now.',
+      resultsFor: 'Results for “{query}”', all: 'All', topAll: 'Top All', korean: 'Korean', japanese: 'Japanese',
+      chinese: 'Chinese', indian: 'Indian', turkish: 'Turkish', thai: 'Thai', allDramas: 'All Dramas',
+      addedList: 'Added to My List', removedList: 'Removed from My List', inMyList: 'In My List', addMyList: 'Add to My List',
+      searchFailed: 'Search failed. Please try again.', detailsFailed: 'Could not load details.', noSynopsis: 'No synopsis available.',
+      seasonsEpisodes: 'Seasons & Episodes — tap an episode to watch', topCast: 'Top Cast', moreLikeThis: 'More Like This',
+      loadingEpisodes: 'Loading episodes…', noEpisodeData: 'No episode data for this season.', episodesFailed: 'Could not load episodes.',
+      animeVideo: 'Anime video', officialPreview: 'Official preview / licensed link', trailer: 'Trailer',
+      noAnimePreview: 'No embeddable official preview was published for this title.', officialAnimeLinks: 'Official anime links',
+      officialUnavailable: 'Official anime video not available',
+      animeUnavailableHelp: 'This title has no embeddable official preview right now. Open a licensed provider below or try again later.',
+      autoBest: 'Auto (best)', pickingServer: 'Picking best server…', preparing: 'Preparing…', tryAgain: 'Try again',
+      serverBusy: 'All servers are busy', nextServer: 'Next server', preferredAudioAuto: 'Auto (provider default)',
+      hindiPreferred: 'Hindi (when provider offers it)', languageUpdated: 'Language updated', interfaceUpdated: 'Interface changed to Hindi',
+      regionUpdated: 'Region updated', regionDetected: 'Region detected: {region}', regionFailed: 'Could not detect region',
+      browserCacheCleared: 'Browser cache cleared', darkToLight: 'Dark theme — switch to Light', lightToDark: 'Light theme — switch to Dark',
+      dataUsed: 'Data used', requests: 'Requests', since: 'Since', savedTitles: 'Saved titles', serverStatus: 'Server status',
+      online: 'Online', offline: 'Offline', idle: 'Idle', unavailable: 'Unavailable',
+      connecting: 'Connecting…', streamUnavailable: 'Stream unavailable. Try another channel.', hlsUnsupported: 'Live TV is not supported in this browser.',
+      audioEnhanced: 'Clear audio enabled', audioNormal: 'Normal audio restored', quality: 'Quality', speed: 'Speed',
+      resume: 'Resume', playlistName: 'Playlist name:', newPlaylistName: 'New playlist name:',
+      emptyPlaylists: "You haven't created any playlists yet.", emptyPlaylistHint: 'Create a Weekend Watch or Anime Marathon list.',
+      titlesCount: '{count} title', titlesCountPlural: '{count} titles', alreadyPlaylist: 'Already in playlist',
+      addedPlaylist: 'Added to “{name}”', noOfficialServices: 'No official services found for your region.',
+      officialOptionsUnavailable: 'Official options unavailable right now.', audioDefault: 'Audio: provider default',
+      audioPreference: 'Preferred audio: {language}. Confirm the track inside the provider player.',
+    },
+    hi: {
+      skipContent: 'मुख्य सामग्री पर जाएँ', home: 'होम', movies: 'फ़िल्में', tvShows: 'टीवी शो', anime: 'ऐनिमे',
+      drama: 'ड्रामा', liveTV: 'लाइव टीवी', playlists: 'प्लेलिस्ट', myList: 'मेरी सूची', myPlaylists: 'मेरी प्लेलिस्ट',
+      searchPlaceholder: 'फ़िल्म, शो या ऐनिमे खोजें…', watchNow: 'अभी देखें', moreInfo: 'और जानकारी',
+      continueWatching: 'देखना जारी रखें', trendingNow: 'अभी ट्रेंडिंग', popularMovies: 'लोकप्रिय फ़िल्में',
+      topRatedMovies: 'टॉप रेटेड फ़िल्में', popularTV: 'लोकप्रिय टीवी शो', topRatedTV: 'टॉप रेटेड टीवी',
+      asianDramas: 'के-ड्रामा और एशियाई ड्रामा', seeAll: 'सभी देखें →', topAnime: 'टॉप ऐनिमे', airingNow: 'अभी प्रसारित',
+      comingSoon: 'जल्द आ रहा है', horrorPicks: 'हॉरर पसंद', comedyNights: 'कॉमेडी नाइट्स',
+      actionAdventure: 'एक्शन और एडवेंचर', browse: 'ब्राउज़ करें', back: 'वापस', loadMore: 'और दिखाएँ',
+      noTitles: 'कोई शीर्षक नहीं मिला। कुछ और खोजें।', newPlaylist: 'नई प्लेलिस्ट', backPlaylists: '‹ प्लेलिस्ट पर वापस',
+      rename: 'नाम बदलें', liveSub: '24/7 सार्वजनिक चैनल — उपलब्धता क्षेत्र के अनुसार बदल सकती है।', watchingNow: 'अभी देख रहे हैं',
+      nowPlaying: 'अभी चल रहा है', audio: 'ऑडियो', preferredAudio: 'पसंदीदा ऑडियो',
+      audioNote: 'ऑडियो ट्रैक चुने गए प्रदाता पर निर्भर हैं। भाषा न मिले तो वीडियो प्लेयर के मेनू में चुनें।',
+      swipeRecommendations: 'सुझावों के लिए ऊपर स्वाइप करें', recommended: 'आपके लिए सुझाव', seeAllUp: 'सभी देखें ↑',
+      swipeDown: 'वापस आने के लिए नीचे स्वाइप करें', reload: 'फिर लोड करें', youMayLike: 'आपको यह भी पसंद आ सकता है',
+      episodes: 'एपिसोड', source: 'सर्वर', prev: '‹ पिछला', next: 'अगला ›', mute: 'म्यूट', unmute: 'आवाज़ चालू',
+      clearAudio: 'साफ़ ऑडियो', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
+      interfaceLanguageNote: 'वेबसाइट के बटन, मेनू और संदेशों की भाषा बदलती है।', contentLanguage: 'शीर्षक और विवरण की भाषा', contentLanguageNote: 'जहाँ अनुवाद उपलब्ध है, शीर्षक और विवरण इसी भाषा में दिखेंगे।',
+      countryNote: 'प्लेयर के नीचे आधिकारिक सेवाएँ दिखाने के लिए उपयोग होता है।', sourceNote: 'देखें दबाने पर खुलने वाला डिफ़ॉल्ट सर्वर।',
+      emptyMyList: 'आपकी सूची खाली है। कोई शीर्षक जोड़कर यहाँ सहेजें।', emptyPlaylist: 'यह प्लेलिस्ट खाली है। कोई शीर्षक चुनकर इसमें जोड़ें।',
+      footerTagline: 'फ़िल्में · टीवी शो · ऐनिमे · ड्रामा · लाइव टीवी · प्लेलिस्ट', unmuteHint: 'आवाज़ बंद हो तो वीडियो के अंदर स्पीकर बटन दबाएँ।',
+      sourceHint: '(एक न चले तो दूसरा सर्वर आज़माएँ)', openSource: 'स्रोत खोलें',
+      countryRegion: 'देश / क्षेत्र', autoDetect: 'अपने-आप पहचानें', preferredSource: 'पसंदीदा प्लेयर सर्वर',
+      popupProtection: 'पॉपअप और विज्ञापन सुरक्षा', theme: 'थीम', cachedData: 'कैश डेटा (इस ब्राउज़र में)',
+      resetStats: 'आँकड़े रीसेट करें', clearBrowserCache: 'ब्राउज़र कैश साफ़ करें',
+      movie: 'फ़िल्म', film: 'फ़िल्म', series: 'सीरीज़', featured: 'विशेष', match: 'मैच', new: 'नया',
+      watch: 'देखें', details: 'जानकारी', soon: 'जल्द', retry: 'फिर कोशिश करें', couldNotLoad: 'अभी लोड नहीं हो सका।',
+      resultsFor: '“{query}” के नतीजे', all: 'सभी', topAll: 'सभी टॉप', korean: 'कोरियाई', japanese: 'जापानी',
+      chinese: 'चीनी', indian: 'भारतीय', turkish: 'तुर्की', thai: 'थाई', allDramas: 'सभी ड्रामा',
+      addedList: 'मेरी सूची में जोड़ दिया', removedList: 'मेरी सूची से हटा दिया', inMyList: 'मेरी सूची में', addMyList: 'मेरी सूची में जोड़ें',
+      searchFailed: 'खोज नहीं हो सकी। फिर कोशिश करें।', detailsFailed: 'जानकारी लोड नहीं हो सकी।', noSynopsis: 'विवरण उपलब्ध नहीं है।',
+      seasonsEpisodes: 'सीज़न और एपिसोड — देखने के लिए एपिसोड दबाएँ', topCast: 'मुख्य कलाकार', moreLikeThis: 'ऐसे और शीर्षक',
+      loadingEpisodes: 'एपिसोड लोड हो रहे हैं…', noEpisodeData: 'इस सीज़न के एपिसोड उपलब्ध नहीं हैं।', episodesFailed: 'एपिसोड लोड नहीं हो सके।',
+      animeVideo: 'ऐनिमे वीडियो', officialPreview: 'आधिकारिक प्रीव्यू / लाइसेंस प्राप्त लिंक', trailer: 'ट्रेलर',
+      noAnimePreview: 'इस शीर्षक का एम्बेड होने वाला आधिकारिक प्रीव्यू उपलब्ध नहीं है।', officialAnimeLinks: 'आधिकारिक ऐनिमे लिंक',
+      officialUnavailable: 'आधिकारिक ऐनिमे वीडियो उपलब्ध नहीं है',
+      animeUnavailableHelp: 'अभी एम्बेड होने वाला आधिकारिक प्रीव्यू नहीं है। नीचे किसी लाइसेंस प्राप्त सेवा को खोलें या बाद में कोशिश करें।',
+      autoBest: 'ऑटो (सबसे अच्छा)', pickingServer: 'सबसे अच्छा सर्वर चुना जा रहा है…', preparing: 'तैयार हो रहा है…',
+      tryAgain: 'फिर कोशिश करें', serverBusy: 'सभी सर्वर व्यस्त हैं', nextServer: 'अगला सर्वर', preferredAudioAuto: 'ऑटो (प्रदाता का डिफ़ॉल्ट)',
+      hindiPreferred: 'हिन्दी (यदि प्रदाता पर उपलब्ध हो)', languageUpdated: 'कंटेंट की भाषा बदल दी गई', interfaceUpdated: 'वेबसाइट अब हिन्दी में है',
+      regionUpdated: 'क्षेत्र बदल दिया गया', regionDetected: 'क्षेत्र मिला: {region}', regionFailed: 'क्षेत्र नहीं पहचाना जा सका',
+      browserCacheCleared: 'ब्राउज़र कैश साफ़ हो गया', darkToLight: 'डार्क थीम — लाइट करें', lightToDark: 'लाइट थीम — डार्क करें',
+      dataUsed: 'डेटा उपयोग', requests: 'रिक्वेस्ट', since: 'तब से', savedTitles: 'सहेजे शीर्षक', serverStatus: 'सर्वर स्थिति',
+      online: 'ऑनलाइन', offline: 'ऑफ़लाइन', idle: 'खाली', unavailable: 'उपलब्ध नहीं', connecting: 'कनेक्ट हो रहा है…',
+      streamUnavailable: 'स्ट्रीम उपलब्ध नहीं है। दूसरा चैनल आज़माएँ।', hlsUnsupported: 'इस ब्राउज़र में लाइव टीवी समर्थित नहीं है।',
+      audioEnhanced: 'साफ़ ऑडियो चालू है', audioNormal: 'सामान्य ऑडियो बहाल', quality: 'क्वालिटी', speed: 'स्पीड',
+      resume: 'जारी रखें', playlistName: 'प्लेलिस्ट का नाम:', newPlaylistName: 'नई प्लेलिस्ट का नाम:',
+      emptyPlaylists: 'आपने अभी कोई प्लेलिस्ट नहीं बनाई है।', emptyPlaylistHint: 'वीकेंड वॉच या ऐनिमे मैराथन सूची बनाएँ।',
+      titlesCount: '{count} शीर्षक', titlesCountPlural: '{count} शीर्षक', alreadyPlaylist: 'पहले से प्लेलिस्ट में है',
+      addedPlaylist: '“{name}” में जोड़ दिया', noOfficialServices: 'आपके क्षेत्र में कोई आधिकारिक सेवा नहीं मिली।',
+      officialOptionsUnavailable: 'आधिकारिक विकल्प अभी उपलब्ध नहीं हैं।', audioDefault: 'ऑडियो: प्रदाता का डिफ़ॉल्ट',
+      audioPreference: 'पसंदीदा ऑडियो: {language}। वीडियो प्लेयर के अंदर ट्रैक की पुष्टि करें।',
+    },
+  };
+
+  function t(key, vars = {}) {
+    const lang = (typeof state !== 'undefined' && state.uiLang) || 'en';
+    let value = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+    Object.entries(vars).forEach(([name, replacement]) => {
+      value = value.replaceAll(`{${name}}`, String(replacement));
+    });
+    return value;
+  }
+
+  function setElementLabel(el, value) {
+    if (!el) return;
+    const textNodes = Array.from(el.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
+    if (!el.children.length || !textNodes.length) {
+      el.textContent = value;
+      return;
+    }
+    textNodes.slice(0, -1).forEach((node) => { node.nodeValue = ''; });
+    textNodes[textNodes.length - 1].nodeValue = ` ${value}`;
+  }
+
+  function applyUiLanguage() {
+    const lang = state.uiLang === 'hi' ? 'hi' : 'en';
+    document.documentElement.lang = lang;
+    document.documentElement.dir = 'ltr';
+    $$('[data-i18n]').forEach((el) => setElementLabel(el, t(el.dataset.i18n)));
+    $$('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.title = lang === 'hi'
+      ? 'StreamVerse — फ़िल्में, टीवी शो, ऐनिमे और लाइव टीवी'
+      : 'StreamVerse — Movies, TV Shows, Anime & Live TV';
+  }
+
   /* ========= STREAM SOURCES (verified working) =========
      Order = priority for "Auto (best)". */
   const STREAM_SOURCES = [
-    { id: 'vidlink',    name: 'VidLink',       color: '#14b8a6', priority: 10,
-      movie: (id, lang) => `https://vidlink.pro/movie/${id}${lang ? '?language='+lang : ''}`,
-      tv: (id,s,e,lang) => `https://vidlink.pro/tv/${id}/${s}/${e}${lang ? '?language='+lang : ''}` },
+    { id: 'vidlink',    name: 'VidLink · JW',   color: '#14b8a6', priority: 10,
+      // JW mode gives the embed its proper audio/volume pipeline. autoplay is
+      // enabled, while the browser still requires one user tap for sound.
+      movie: (id, lang) => `https://vidlink.pro/movie/${id}?player=jw&autoplay=true&poster=true&title=true&nextbutton=true${lang ? '&language='+encodeURIComponent(lang) : ''}`,
+      tv: (id,s,e,lang) => `https://vidlink.pro/tv/${id}/${s}/${e}?player=jw&autoplay=true&poster=true&title=true&nextbutton=true${lang ? '&language='+encodeURIComponent(lang) : ''}` },
     { id: 'vidsrc-to',  name: 'VidSrc.to',     color: '#e50914', priority: 9,
       movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
       tv: (id,s,e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
@@ -71,69 +217,86 @@
 
   /* ========= LIVE TV CHANNELS (free public HLS) ========= */
   const LIVE_CHANNELS = [
-    { cat: 'News',    name: 'Al Jazeera English',  logo: '🇶🇦', url: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8' },
-    { cat: 'News',    name: 'Al Jazeera Arabic',   logo: '🇶🇦', url: 'https://live-hls-web-aja.getaj.net/AJA/01.m3u8' },
-    { cat: 'News',    name: 'France 24 English',   logo: '🇫🇷', url: 'https://static.france24.com/live/F24_EN_LO_HLS/live_web.m3u8' },
-    { cat: 'News',    name: 'France 24 Français',  logo: '🇫🇷', url: 'https://static.france24.com/live/F24_FR_LO_HLS/live_web.m3u8' },
-    { cat: 'News',    name: 'DW English',          logo: '🇩🇪', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
-    { cat: 'News',    name: 'Bloomberg TV',        logo: '🇺🇸', url: 'https://bloomberg.com/media-manifest/streams/us.m3u8' },
-    { cat: 'News',    name: 'CNBC USA',            logo: '🇺🇸', url: 'https://podium.services.springcpc.com/ttcnnlkjhb/chunks.m3u8' },
-    { cat: 'News',    name: 'NHK World Japan',     logo: '🇯🇵', url: 'https://nhkwlive-ojp.akamaized.net/hls/live/2003459/nhkwlive-ojp-en/index.m3u8' },
-    { cat: 'News',    name: 'CNA',                 logo: '🇸🇬', url: 'https://d2e9ms4x0r9b6s.cloudfront.net/hls/cna-intl.m3u8' },
-    { cat: 'News',    name: 'Euronews English',    logo: '🇪🇺', url: 'https://rakuten-euronews-1-be.samsung.wurl.tv/playlist.m3u8' },
-    { cat: 'News',    name: 'Sky News Australia',  logo: '🇦🇺', url: 'https://linear217-gb-hls1-prd-ak.cdn01.cds1.skycdp.com/usp/auth/content_1080p30/master.m3u8' },
-    { cat: 'Entertainment', name: 'Red Bull TV',   logo: '🐂', url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8' },
-    { cat: 'Entertainment', name: 'MTV Lebanon',   logo: '🎵', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5962148433001/playlist.m3u8' },
-    { cat: 'Entertainment', name: 'BFM TV',        logo: '🇫🇷', url: 'https://ncdn-live-bfm.aws-bfMTV4.wizdeo.io/bfmtv_live.m3u8' },
-    { cat: 'Entertainment', name: 'Luxe TV',       logo: '💎', url: 'https://stream.luxeat.lu/luxetv/luxetv.m3u8' },
-    { cat: 'Entertainment', name: 'Fashion TV',    logo: '👗', url: 'https://fash1043.cloudycdn.services/slive/ftv_paris_hd.m3u8' },
-    { cat: 'Movies',  name: 'FilmRise Free Movies', logo: '🎬', url: 'https://d2j6fpvklg2uq.cloudfront.net/v1/master/022788b5d7d2af64fabaa91520c3b29c088e21f8/ls2-ctv-roku/Content/61415d4a8e47e/master.m3u8' },
-    { cat: 'Movies',  name: 'MaX Romance',         logo: '💕', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858034036001/playlist.m3u8' },
-    { cat: 'Movies',  name: 'MaX Comedy',          logo: '😂', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858035803001/playlist.m3u8' },
-    { cat: 'Movies',  name: 'MaX Thriller',        logo: '🔪', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858034427001/playlist.m3u8' },
-    { cat: 'Sports',  name: 'Red Bull TV Sports',  logo: '🏎️', url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8' },
-    { cat: 'Sports',  name: 'T Sports HD',         logo: '🇧🇩', url: 'http://103.225.189.136:9999/live/tsports.m3u8' },
-    { cat: 'Sports',  name: 'Sports Central',      logo: '⚽', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858040222001/playlist.m3u8' },
-    { cat: 'Kids',    name: 'Animax',              logo: '🦸', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5908828240001/playlist.m3u8' },
-    { cat: 'Kids',    name: 'Kids TV Flix',        logo: '🧸', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858035623001/playlist.m3u8' },
-    { cat: 'Music',   name: 'Clubbing TV',         logo: '🎧', url: 'https://hls021919655169.cdn01.cds1.skycdp.com/usp/auth/content_1080p25/master.m3u8' },
-    { cat: 'Music',   name: 'Hot Gold',            logo: '🎤', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5858036024001/playlist.m3u8' },
-    { cat: 'Music',   name: 'Bigo Live Music',     logo: '🎶', url: 'https://d2y7y4m3.stackpathdns.com/edge/live/861956559001/5908827831001/playlist.m3u8' },
-    { cat: 'Education', name: 'NASA TV',           logo: '🚀', url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8' },
-    { cat: 'Education', name: 'NASA TV Media',     logo: '🛰️', url: 'https://ntv2.akamaized.net/hls/live/2014076/NASA-NTV2-HLS/master.m3u8' },
-    { cat: 'Education', name: 'UN Web TV',         logo: '🌐', url: 'https://dco4c1fdygi3w.cloudfront.net/v1/master/48280d4c7f548f30266d258f864602b5054c87c5/ls2-ctv-roku/Content/44411/master.m3u8' },
+    // India — verified public broadcaster/news manifests (checked 2026-08-22)
+    { cat: 'News', name: 'Aaj Tak HD', logo: '🇮🇳', url: 'https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8' },
+    { cat: 'News', name: 'India Today', logo: '🇮🇳', url: 'https://indiatodaylive.akamaized.net/hls/live/2014320/indiatoday/indiatodaylive/playlist.m3u8' },
+    { cat: 'News', name: 'NDTV 24x7', logo: '🇮🇳', url: 'https://ndtv24x7elemarchana.akamaized.net/hls/live/2003678/ndtv24x7/master.m3u8' },
+    { cat: 'News', name: 'NDTV India', logo: '🇮🇳', url: 'https://ndtvindiaelemarchana.akamaized.net/hls/live/2003679/ndtvindia/master.m3u8' },
+    { cat: 'News', name: 'ABP News', logo: '🇮🇳', url: 'https://d2l4ar6y3mrs4k.cloudfront.net/live-streaming/abpnews-livetv/master.m3u8' },
+    { cat: 'News', name: 'DD News', logo: '🇮🇳', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/0811cd8c37ca4c409d5385a6cd2fa18b/index.m3u8' },
+    { cat: 'News', name: 'News18 India', logo: '🇮🇳', url: 'https://n18syndication.akamaized.net/bpk-tv/News18_India_NW18_MOB/output01/master.m3u8' },
+    { cat: 'News', name: 'News18 Bihar Jharkhand', logo: '📍', url: 'https://n18syndication.akamaized.net/bpk-tv/News18_Bihar_Jharkhand_NW18_MOB/output01/master.m3u8' },
+    { cat: 'News', name: 'CNBC TV18', logo: '📈', url: 'https://n18syndication.akamaized.net/bpk-tv/CNBC_TV18_NW18_MOB/output01/index.m3u8' },
+    { cat: 'News', name: 'WION', logo: '🌐', url: 'https://d7x8z4yuq42qn.cloudfront.net/index_1.m3u8' },
+    { cat: 'News', name: 'Republic TV', logo: '🇮🇳', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/2e31d831f08640ff92f65003bdc89991/index.m3u8' },
+
+    // Public-service channels
+    { cat: 'Education', name: 'DD National', logo: '📺', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8' },
+    { cat: 'Education', name: 'DD Bihar', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/380b0765f87741a4812bc952ec6fbf21/index.m3u8' },
+    { cat: 'Education', name: 'DD Kisan', logo: '🌾', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/4f053f2c12a24641bf701fb7f2376750/index.m3u8' },
+    { cat: 'Education', name: 'Sansad TV 1', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/fff8f20221d5456e8922e689d71dedc3/index.m3u8' },
+    { cat: 'Education', name: 'Sansad TV 2', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/e4182054dce340da9e0ff38b6b3658a4/index.m3u8' },
+
+    // Free-to-air entertainment
+    { cat: 'Entertainment', name: 'Dangal TV', logo: '🎭', url: 'https://live-dangal.akamaized.net/liveabr/playlist.m3u8' },
+    { cat: 'Movies', name: 'Bhojpuri Cinema', logo: '🎬', url: 'https://live-bhojpuri.akamaized.net/liveabr/playlist.m3u8' },
+    { cat: 'Music', name: '9XM', logo: '🎵', url: 'https://9xjio.wiseplayout.com/9XM/master.m3u8' },
+    { cat: 'Sports', name: 'Red Bull TV', logo: '🏎️', url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8' },
+
+    // International public streams
+    { cat: 'News', name: 'France 24 English', logo: '🇫🇷', url: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8' },
+    { cat: 'News', name: 'DW English', logo: '🇩🇪', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
+    { cat: 'News', name: 'Euronews English', logo: '🇪🇺', url: 'https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8' },
+    { cat: 'News', name: 'TRT World', logo: '🇹🇷', url: 'https://tv-trtworld.medya.trt.com.tr/master.m3u8' },
+    { cat: 'News', name: 'Al Jazeera Arabic', logo: '🇶🇦', url: 'https://live-hls-web-aja.getaj.net/AJA/01.m3u8' },
   ];
+
+  function readStoredJson(key, fallback) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || 'null');
+      return value == null ? fallback : value;
+    } catch (e) {
+      localStorage.removeItem(key);
+      return fallback;
+    }
+  }
+  function readStoredArray(key) {
+    const value = readStoredJson(key, []);
+    return Array.isArray(value) ? value : [];
+  }
 
   /* ========= STATE ========= */
   const state = {
-    heroItems: [], heroIndex: 0, heroTimer: null, heroPaused: false,
+    heroItems: [], heroIndex: 0, heroTimer: null, heroPaused: false, homeLoaded: false,
     detail: null,
     lang: localStorage.getItem('sv-lang') || 'en-US',
+    uiLang: localStorage.getItem('sv-ui-lang') || ((localStorage.getItem('sv-lang') || '').startsWith('hi') ? 'hi' : 'en'),
     region: localStorage.getItem('sv-region') || '',
     country: localStorage.getItem('sv-country') || '',
     countries: [],
-    watchlist: JSON.parse(localStorage.getItem('sv-watchlist') || '[]'),
-    continue:  JSON.parse(localStorage.getItem('sv-continue')  || '[]'),
-    playlists: JSON.parse(localStorage.getItem('sv-playlists') || '[]'),
+    watchlist: readStoredArray('sv-watchlist'),
+    continue:  readStoredArray('sv-continue'),
+    playlists: readStoredArray('sv-playlists'),
     browse: { page: 1, totalPages: 1, kind: 'movie', genre: 0, loading: false, apiPath: '' },
     player: (() => {
       const saved = localStorage.getItem('sv-source');
       const validIds = new Set([AUTO_ID, ...STREAM_SOURCES.map(s=>s.id)]);
       return {
-        active: false, title: '', media: 'movie', tmdbId: null, malId: null, backdrop: '',
+        active: false, title: '', media: 'movie', tmdbId: null, malId: null, animeId: null, animeSource: 'mal', backdrop: '',
         season: 1, episode: 1, seasons: [], episodes: [],
         source: (saved && validIds.has(saved)) ? saved : AUTO_ID,
-        autoIdx: 0, autoTimer: null, _lastSrcAt: 0,
+        autoIdx: 0, autoTimer: null, _lastSrcAt: 0, loadToken: 0,
         audioLang: localStorage.getItem('sv-audio-lang') || '',
         animeVideo: null,
       };
     })(),
     sandbox: localStorage.getItem('sv-sandbox') === '1',
     useServer: location.protocol.startsWith('http') && !location.protocol.startsWith('file'),
-    live: { hls: null, currentChannel: null },
+    live: { hls: null, currentChannel: null, audioContext: null, audioSource: null, compressor: null, gain: null, enhanced: false },
   };
 
-  let usage = JSON.parse(localStorage.getItem('sv-usage') || 'null') || { bytes: 0, reqs: 0, since: Date.now() };
+  let usage = readStoredJson('sv-usage', { bytes: 0, reqs: 0, since: Date.now() });
+  if (!usage || typeof usage !== 'object') usage = { bytes: 0, reqs: 0, since: Date.now() };
   const saveUsage = () => localStorage.setItem('sv-usage', JSON.stringify(usage));
   const fmtMB = (b) => (b / 1048576).toFixed(2) + ' MB';
 
@@ -155,30 +318,31 @@
   /* ================= API LAYER (with direct fallback) ================= */
   async function rawFetch(url, opts = {}) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opts.timeout || 12000);
+    const externalSignal = opts.signal;
+    const onAbort = () => ctrl.abort(externalSignal && externalSignal.reason);
+    if (externalSignal) {
+      if (externalSignal.aborted) onAbort();
+      else externalSignal.addEventListener('abort', onAbort, { once: true });
+    }
+    const timer = setTimeout(() => ctrl.abort(new DOMException('Timed out', 'TimeoutError')), opts.timeout || 12000);
+    const fetchOpts = { ...opts, signal: ctrl.signal };
+    delete fetchOpts.timeout;
     try {
-      const r = await fetch(url, { signal: ctrl.signal, ...opts });
-      clearTimeout(timer);
+      const r = await fetch(url, fetchOpts);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
-    } catch (e) {
+    } finally {
       clearTimeout(timer);
-      throw e;
+      if (externalSignal) externalSignal.removeEventListener('abort', onAbort);
     }
   }
 
-  async function directTmdb(path, params = {}) {
-    // On Render/local Node, the server adds process.env.TMDB_KEY. Do not put
-    // the production key in the browser query string.
-    if (location.protocol.startsWith('http')) {
-      const qp = new URLSearchParams({ p: path, ...params, language: state.lang || 'en-US' }).toString();
-      return rawFetch('/api/tmdb?' + qp);
-    }
-    // File mode is catalogue-only unless a developer deliberately supplies a
-    // local key here; the supported deployment path is the Render server.
-    if (!TMDB_KEY) throw new Error('Run the Node server to use TMDB');
+  async function directTmdb(path, params = {}, options = {}) {
+    // Production always uses the same-origin Render API. This direct mode is
+    // only for a developer who intentionally supplies a local browser key.
+    if (!TMDB_KEY) throw new Error('Run the Node server and configure TMDB_KEY');
     const q = new URLSearchParams({ api_key: TMDB_KEY, language: state.lang || 'en-US', ...params }).toString();
-    return rawFetch(`${TMDB_BASE}${path}?${q}`);
+    return rawFetch(`${TMDB_BASE}${path}?${q}`, options);
   }
   async function directJikan(path) {
     return rawFetch('https://api.jikan.moe/v4' + path);
@@ -194,7 +358,7 @@
     return data.data;
   }
 
-  function normaliseAnimeVideos(media, malId, fallbackTitle = 'Anime') {
+  function normaliseAnimeVideos(media, animeId, fallbackTitle = 'Anime', animeSource = 'mal') {
     const title = (media && media.title && (media.title.english || media.title.romaji || media.title.native)) || fallbackTitle;
     const secureUrl = (value) => {
       try { const u = new URL(String(value)); if (u.protocol === 'http:') u.protocol = 'https:'; return /^https?:$/.test(u.protocol) ? u.toString() : ''; }
@@ -210,12 +374,14 @@
       embed: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
     } : null;
     const episodes = (media && media.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e, i) => ({
-      id: `${malId}-${i + 1}`, title: e.title || `Official episode ${i + 1}`,
+      id: `${animeSource}-${animeId}-${i + 1}`, title: e.title || `Official episode ${i + 1}`,
       thumbnail: e.thumbnail || '', url: secureUrl(e.url), site: e.site || 'Official',
     }));
     const q = encodeURIComponent(title);
     return {
-      ok: Boolean(trailer || episodes.length), source: 'AniList', mal_id: Number(malId), title,
+      ok: Boolean(trailer || episodes.length), source: 'AniList', id: Number(animeId), id_type: animeSource,
+      mal_id: animeSource === 'mal' ? Number(animeId) : (media && media.idMal || null),
+      anilist_id: animeSource === 'anilist' ? Number(animeId) : (media && media.id || null), title,
       trailer, episodes,
       official: [
         { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
@@ -226,21 +392,23 @@
     };
   }
 
-  async function directAnimeVideos(malId, fallbackTitle) {
-    const data = await directAnilist(ANILIST_VIDEO_QUERY, { idMal: Number(malId) });
+  async function directAnimeVideos(id, fallbackTitle, source = 'mal') {
+    const vars = source === 'anilist' ? { id: Number(id) } : { idMal: Number(id) };
+    const data = await directAnilist(ANILIST_VIDEO_QUERY, vars);
     if (!data || !data.Media) throw new Error('Anime not found');
-    return normaliseAnimeVideos(data.Media, malId, fallbackTitle);
+    return normaliseAnimeVideos(data.Media, id, fallbackTitle, source);
   }
 
-  async function api(p, { noCache = false } = {}) {
-    const sep = p.includes('?') ? '&' : '?';
-    const url = p + (state.lang ? `${sep}lang=${encodeURIComponent(state.lang)}` : '');
+  async function api(p, { noCache = false, signal } = {}) {
+    const parsed = new URL(p, 'https://streamverse.local');
+    if (state.lang && !parsed.searchParams.has('lang')) parsed.searchParams.set('lang', state.lang);
+    const url = parsed.pathname + (parsed.searchParams.toString() ? '?' + parsed.searchParams.toString() : '');
     if (!noCache) {
       const hit = apiCache.get(url);
       if (hit && Date.now() - hit.t < 4 * 60 * 1000) return hit.v;
     }
     const tryServer = async () => {
-      const r = await fetch('/api' + url);
+      const r = await fetch('/api' + url, { signal, headers: { Accept: 'application/json' } });
       if (!r.ok) {
         let msg = 'HTTP ' + r.status;
         try { const j = await r.json(); if (j && j.error) msg = j.error; } catch (e) {}
@@ -284,7 +452,7 @@
       if (p.startsWith('/tv/genre')) return directTmdb('/discover/tv', { with_genres: get('g'), sort_by: get('sort') || 'popularity.desc', 'vote_count.gte': '50', page: get('page') || '1' });
       if (p.startsWith('/drama/popular')) {
         // Korean / Asian dramas — discover with origin country KR + with_original_language
-        return directTmdb('/discover/tv', { with_original_language: get('lang') || 'ko', sort_by: 'popularity.desc', page: get('page') || '1', 'vote_count.gte': '10' });
+        return directTmdb('/discover/tv', { with_original_language: get('origin') || 'ko', sort_by: 'popularity.desc', page: get('page') || '1', 'vote_count.gte': '10' });
       }
       if (p.startsWith('/drama/trending')) return directTmdb('/trending/tv/week', { with_original_language: 'ko' });
       if (p.startsWith('/anime/genres')) return directJikan('/genres/anime').then((d) => ({ genres: (d.data || []).filter((g) => g.mal_id < 50 || g.mal_id === 62) }));
@@ -293,7 +461,7 @@
       if (p.startsWith('/anime/topairing')) return directJikan('/top/anime?filter=airing');
       if (p.startsWith('/anime/search')) return directJikan('/anime?q=' + encodeURIComponent(get('q') || '') + '&page=1');
       if (p.startsWith('/anime/details')) return directJikan(`/anime/${get('id')}/full`);
-      if (p.startsWith('/anime/videos')) return directAnimeVideos(get('id'), get('title') || 'Anime');
+      if (p.startsWith('/anime/videos')) return directAnimeVideos(get('id'), get('title') || 'Anime', get('source') || 'mal');
       if (p.startsWith('/anime/tmdb')) {
         // client-side MAL → TMDB mapping
         const j = await directJikan(`/anime/${get('id')}/full`);
@@ -316,25 +484,18 @@
         return { countries: (list || []).map((c) => ({ code: c.iso_3166_1, name: c.english_name, native: c.native_name })) };
       }
       if (p.startsWith('/geo')) return { country_code: 'IN', country: 'India', flag: '🇮🇳' };
-      if (p.startsWith('/stats')) return { version: '9.3.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
+      if (p.startsWith('/stats')) return { version: '10.0.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
       if (p.startsWith('/cache/clear')) return { ok: true, cleared: 0 };
-      if (p.startsWith('/health')) return { ok: true, version: '9.3.0-client' };
+      if (p.startsWith('/health')) return { ok: true, version: '10.0.0-client' };
       throw new Error('unknown api path: ' + p);
     };
 
-    let data, err;
-    // try server first if running on a host
-    if (state.useServer) {
-      try { data = await tryServer(); }
-      catch (e) { err = e; }
-    }
-    if (!data) {
-      try { data = await tryDirect(); }
-      catch (e2) {
-        if (state.useServer && err) throw err;
-        throw e2;
-      }
-    }
+    let data;
+    // Render serves the frontend and API from one origin. Do not repeat a
+    // failed server request directly against TMDB/Jikan; that doubled quota
+    // use and made errors take twice as long.
+    if (state.useServer) data = await tryServer();
+    else data = await tryDirect();
     usage.reqs++;
     try { usage.bytes += JSON.stringify(data).length; } catch (e) {}
     if (usage.reqs % 4 === 0) saveUsage();
@@ -372,6 +533,11 @@
   const backdropUrl = (p) => !p ? '' : (String(p).startsWith('http') ? p : BACKDROP + p);
   const titleOf = (m) => m.title || m.name || m.title_english || '';
   const mediaOf = (m) => m.media_type === 'tv' || m.first_air_date || m.number_of_seasons ? 'tv' : 'movie';
+  function animeRef(a = {}) {
+    const source = a.anime_source || a.animeSource || (a.mal_id ? 'mal' : 'anilist');
+    const id = source === 'mal' ? (a.mal_id || a.id) : (a.anilist_id || a.id);
+    return { id: Number(id), source: source === 'anilist' ? 'anilist' : 'mal' };
+  }
 
   function placeholderPoster() {
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -395,14 +561,14 @@
   }
 
   /* ================= WATCHLIST / CONTINUE / PLAYLISTS ================= */
-  function inWatchlist(id, media) { return state.watchlist.some((x) => x.id === id && x.media === media); }
+  function inWatchlist(id, media) { return state.watchlist.some((x) => String(x.id) === String(id) && x.media === media); }
   function toggleWatchlist(item) {
     const id = item.id, media = item.media_type || mediaOf(item);
-    const idx = state.watchlist.findIndex((x) => x.id === id && x.media === media);
-    if (idx >= 0) { state.watchlist.splice(idx,1); toast('Removed from My List'); }
+    const idx = state.watchlist.findIndex((x) => String(x.id) === String(id) && x.media === media);
+    if (idx >= 0) { state.watchlist.splice(idx,1); toast(t('removedList')); }
     else {
-      state.watchlist.unshift({ id, media, title: titleOf(item), poster: item.poster_path||'', backdrop: item.backdrop_path||'', vote_average: item.vote_average||0, release_date: item.release_date||item.first_air_date||'', addedAt: Date.now() });
-      toast('Added to My List');
+      state.watchlist.unshift({ id, media, animeSource: item.anime_source || item.animeSource || null, title: titleOf(item), poster: item.poster_path||'', backdrop: item.backdrop_path||'', vote_average: item.vote_average||0, release_date: item.release_date||item.first_air_date||'', addedAt: Date.now() });
+      toast(t('addedList'));
     }
     localStorage.setItem('sv-watchlist', JSON.stringify(state.watchlist));
     updateWatchlistButtons(id, media);
@@ -416,7 +582,7 @@
         const on = inWatchlist(id, media);
         btn.classList.toggle('in-list', on);
         btn.innerHTML = on ? CHECK : PLUS;
-        btn.title = on ? 'In My List' : 'Add to My List';
+        btn.title = on ? t('inMyList') : t('addMyList');
       }
     });
   }
@@ -430,13 +596,14 @@
     const id = item.id, media = item.media_type || mediaOf(item);
     const isTv = media === 'tv' || opts.season != null;
     const entry = {
-      id, media, title: titleOf(item), poster: item.poster_path||'', backdrop: item.backdrop_path||'',
+      id, media, animeSource: item.anime_source || item.animeSource || opts.animeSource || null,
+      title: titleOf(item), poster: item.poster_path||'', backdrop: item.backdrop_path||'',
       vote_average: item.vote_average||0, release_date: item.release_date||item.first_air_date||'',
       season: isTv ? (opts.season || state.player.season || 1) : null,
       episode: isTv ? (opts.episode || state.player.episode || 1) : null,
       progress: Math.round(20 + Math.random()*70), at: Date.now(),
     };
-    const idx = state.continue.findIndex((x) => x.id === id && x.media === media);
+    const idx = state.continue.findIndex((x) => String(x.id) === String(id) && x.media === media);
     if (idx >= 0) state.continue.splice(idx,1);
     state.continue.unshift(entry);
     state.continue = state.continue.slice(0,12);
@@ -444,7 +611,7 @@
     renderContinueRow();
   }
 
-  function loadPlaylists() { try { state.playlists = JSON.parse(localStorage.getItem('sv-playlists')||'[]'); } catch(e) { state.playlists=[]; } }
+  function loadPlaylists() { state.playlists = readStoredArray('sv-playlists'); }
   function savePlaylists() { localStorage.setItem('sv-playlists', JSON.stringify(state.playlists)); }
   function createPlaylist(name) {
     const pl = { id: 'pl_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name: name || 'New Playlist', items: [], createdAt: Date.now() };
@@ -452,14 +619,14 @@
   }
   function addToPlaylist(plId, item) {
     const pl = state.playlists.find((p) => p.id === plId); if (!pl) return;
-    if (pl.items.some((x) => x.id === item.id && x.media === item.media)) { toast('Already in playlist'); return; }
+    if (pl.items.some((x) => String(x.id) === String(item.id) && x.media === item.media)) { toast(t('alreadyPlaylist')); return; }
     pl.items.unshift({ ...item, addedAt: Date.now() });
     savePlaylists();
-    toast(`Added to "${pl.name}"`);
+    toast(t('addedPlaylist', { name: pl.name }));
   }
   function removeFromPlaylist(plId, id, media) {
     const pl = state.playlists.find((p) => p.id === plId); if (!pl) return;
-    pl.items = pl.items.filter((x) => !(x.id === id && x.media === media));
+    pl.items = pl.items.filter((x) => !(String(x.id) === String(id) && x.media === media));
     savePlaylists();
   }
 
@@ -469,101 +636,111 @@
     el.className = 'card'; el.tabIndex = 0; el.setAttribute('role','button');
     const media = mediaOf(m);
     el.dataset.id = m.id; el.dataset.media = media;
-    const t = esc(titleOf(m));
-    const badge = media === 'tv' ? '<span class="card-badge tv">TV</span>' : '<span class="card-badge">MOVIE</span>';
-    const rating = m.vote_average ? `<span class="card-rating">${STAR} ${m.vote_average.toFixed(1)}</span>` : '';
+    const title = titleOf(m);
+    const safeTitle = esc(title);
+    const badge = media === 'tv'
+      ? `<span class="card-badge tv">${esc(t('series').toUpperCase())}</span>`
+      : `<span class="card-badge">${esc(t('movie').toUpperCase())}</span>`;
+    const rating = Number(m.vote_average) > 0 ? `<span class="card-rating">${STAR} ${Number(m.vote_average).toFixed(1)}</span>` : '';
     const onList = inWatchlist(m.id, media);
     const upcoming = !isReleased(m);
+    const poster = posterUrl(m.poster_path);
+    const srcset = m.poster_path && !String(m.poster_path).startsWith('http')
+      ? ` srcset="${esc(IMG + m.poster_path)} 342w, ${esc(IMG_LARGE + m.poster_path)} 500w" sizes="(max-width:760px) 140px, 184px"`
+      : '';
     el.innerHTML = `
-      <img class="card-poster" loading="lazy" src="${esc(posterUrl(m.poster_path))}" alt="${t}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
+      <img class="card-poster" loading="lazy" decoding="async" fetchpriority="low" src="${esc(poster)}"${srcset} alt="${safeTitle}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
       ${badge}
-      ${upcoming?'<span class="card-badge upcoming">SOON</span>':''}
+      ${upcoming?`<span class="card-badge upcoming">${esc(t('soon').toUpperCase())}</span>`:''}
       ${rating}
       <div class="card-actions">
-        <button class="card-action wl-btn ${onList?'in-list':''}" data-id="${m.id}" data-media="${media}" title="${onList?'In My List':'Add to My List'}" aria-label="Toggle list">${onList?CHECK:PLUS}</button>
+        <button class="card-action wl-btn ${onList?'in-list':''}" data-id="${m.id}" data-media="${media}" title="${esc(onList?t('inMyList'):t('addMyList'))}" aria-label="${esc(onList?t('inMyList'):t('addMyList'))}">${onList?CHECK:PLUS}</button>
       </div>
       <div class="card-info">
-        <div class="card-title">${t}</div>
-        <div class="card-sub"><span class="yr">${year(m.release_date||m.first_air_date||'')}</span><span class="dot"></span><span>${upcoming?'Coming soon':(media==='tv'?'Series':'Film')}</span></div>
+        <div class="card-title">${safeTitle}</div>
+        <div class="card-sub"><span class="yr">${year(m.release_date||m.first_air_date||'')}</span><span class="dot"></span><span>${upcoming?t('comingSoon'):(media==='tv'?t('series'):t('film'))}</span></div>
       </div>
       <div class="card-hover-bar">
         ${upcoming
-          ? `<button class="mini-btn disabled" disabled title="Not released yet">${PLAY_SM} Soon</button><button class="mini-btn" data-action="info">Details</button>`
-          : `<button class="mini-btn play" data-action="play">${PLAY_SM} Watch</button><button class="mini-btn" data-action="info">Details</button>`}
+          ? `<button class="mini-btn disabled" disabled>${PLAY_SM} ${esc(t('soon'))}</button><button class="mini-btn" data-action="info">${esc(t('details'))}</button>`
+          : `<button class="mini-btn play" data-action="play">${PLAY_SM} ${esc(t('watch'))}</button><button class="mini-btn" data-action="info">${esc(t('details'))}</button>`}
       </div>`;
     el.onclick = (e) => {
       if (e.target.closest('.wl-btn')) { toggleWatchlist(m); return; }
-      if (upcoming) { openDetail(media, m.id, titleOf(m)); return; }
+      if (upcoming) { openDetail(media, m.id, title); return; }
       if (e.target.closest('[data-action="play"]')) {
         recordContinue(m);
-        openPlayer({ title: titleOf(m), media, tmdbId: m.id, backdrop: backdropUrl(m.backdrop_path||m.poster_path) });
+        openPlayer({ title, media, tmdbId: m.id, backdrop: backdropUrl(m.backdrop_path||m.poster_path) });
         return;
       }
-      openDetail(media, m.id, titleOf(m));
+      openDetail(media, m.id, title);
     };
-    el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); openDetail(media, m.id, titleOf(m)); } };
+    el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); openDetail(media, m.id, title); } };
     return el;
   }
   function animeCard(a) {
     const el = document.createElement('div');
     el.className = 'card'; el.tabIndex = 0; el.setAttribute('role','button');
     const img = (a.images && a.images.jpg && (a.images.jpg.large_image_url || a.images.jpg.image_url)) || '';
-    const t = esc(titleOf(a));
+    const title = titleOf(a);
+    const safeTitle = esc(title);
     const yr = a.year ? String(a.year) : (a.aired && a.aired.from ? year(a.aired.from) : '');
     const score = a.score || a.rating || 0;
-    const onList = inWatchlist(a.mal_id, 'anime');
+    const ref = animeRef(a);
+    if (!ref.id) return el;
+    const onList = inWatchlist(ref.id, 'anime');
     const upcoming = a.status && /not yet aired|upcoming/i.test(a.status);
-    el.dataset.id = a.mal_id; el.dataset.media = 'anime';
+    el.dataset.id = ref.id; el.dataset.media = 'anime'; el.dataset.animeSource = ref.source;
     el.innerHTML = `
-      <img class="card-poster" loading="lazy" src="${esc(img||placeholderPoster())}" alt="${t}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
-      <span class="card-badge anime">ANIME</span>
-      ${upcoming?`<span class="card-badge upcoming">UPCOMING</span>`:''}
+      <img class="card-poster" loading="lazy" decoding="async" fetchpriority="low" src="${esc(img||placeholderPoster())}" alt="${safeTitle}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
+      <span class="card-badge anime">${esc(t('anime').toUpperCase())}</span>
+      ${upcoming?`<span class="card-badge upcoming">${esc(t('comingSoon').toUpperCase())}</span>`:''}
       ${score?`<span class="card-rating">${STAR} ${Number(score).toFixed(1)}</span>`:''}
-      <div class="card-actions"><button class="card-action wl-btn ${onList?'in-list':''}" data-id="${a.mal_id}" data-media="anime">${onList?CHECK:PLUS}</button></div>
-      <div class="card-info"><div class="card-title">${t}</div><div class="card-sub"><span class="yr">${yr||'—'}</span><span class="dot"></span><span>${upcoming?'Soon':'Anime'}</span></div></div>
+      <div class="card-actions"><button class="card-action wl-btn ${onList?'in-list':''}" data-id="${ref.id}" data-media="anime" title="${esc(onList?t('inMyList'):t('addMyList'))}" aria-label="${esc(onList?t('inMyList'):t('addMyList'))}">${onList?CHECK:PLUS}</button></div>
+      <div class="card-info"><div class="card-title">${safeTitle}</div><div class="card-sub"><span class="yr">${yr||'—'}</span><span class="dot"></span><span>${upcoming?t('soon'):t('anime')}</span></div></div>
       <div class="card-hover-bar">
         ${upcoming
-          ? `<button class="mini-btn disabled" disabled title="Not yet released">Coming soon</button><button class="mini-btn" data-action="info">Details</button>`
-          : `<button class="mini-btn play" data-action="play">${PLAY_SM} Watch</button><button class="mini-btn" data-action="info">Details</button>`}
+          ? `<button class="mini-btn disabled" disabled>${esc(t('soon'))}</button><button class="mini-btn" data-action="info">${esc(t('details'))}</button>`
+          : `<button class="mini-btn play" data-action="play">${PLAY_SM} ${esc(t('watch'))}</button><button class="mini-btn" data-action="info">${esc(t('details'))}</button>`}
       </div>`;
-    if (upcoming) {
-      el.onclick = (e) => {
-        if (e.target.closest('.wl-btn')) { toggleWatchlist({ id: a.mal_id, media_type:'anime', title: titleOf(a), poster_path: img?img.replace(/^https?:\/\//,''):'' }); return; }
-        openAnimeDetail(a.mal_id, img, titleOf(a));
-      };
-    } else {
-      el.onclick = (e) => {
-        if (e.target.closest('.wl-btn')) { toggleWatchlist({ id: a.mal_id, media_type:'anime', title: titleOf(a), poster_path: img?img.replace(/^https?:\/\//,''):'' }); return; }
-        if (e.target.closest('[data-action="play"]')) {
-          recordContinue({ id: a.mal_id, media_type:'anime', title: titleOf(a), vote_average: a.score, release_date: String(a.year||'') });
-          openPlayer({ title: titleOf(a), media: 'anime', malId: a.mal_id, backdrop: img||'' });
-          return;
-        }
-        openAnimeDetail(a.mal_id, img, titleOf(a));
-      };
-    }
-    el.onkeydown = (e) => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); openAnimeDetail(a.mal_id, img, titleOf(a)); } };
+    const item = {
+      id: ref.id, mal_id: ref.source === 'mal' ? ref.id : null, anilist_id: ref.source === 'anilist' ? ref.id : null,
+      anime_source: ref.source, media_type: 'anime', title, poster_path: img,
+      vote_average: Number(score) || 0, release_date: String(a.year || ''),
+    };
+    el.onclick = (e) => {
+      if (e.target.closest('.wl-btn')) { toggleWatchlist(item); return; }
+      if (!upcoming && e.target.closest('[data-action="play"]')) {
+        recordContinue(item, { animeSource: ref.source });
+        openPlayer({ title, media: 'anime', animeId: ref.id, animeSource: ref.source, backdrop: img || '' });
+        return;
+      }
+      openAnimeDetail(ref.id, img, title, ref.source);
+    };
+    el.onkeydown = (e) => {
+      if (e.key==='Enter'||e.key===' ') { e.preventDefault(); openAnimeDetail(ref.id, img, title, ref.source); }
+    };
     return el;
   }
   function continueCard(c) {
     const el = document.createElement('div');
     el.className = 'card'; el.tabIndex = 0; el.setAttribute('role','button');
     el.dataset.id = c.id; el.dataset.media = c.media;
-    const t = esc(c.title), onList = inWatchlist(c.id, c.media);
-    const sub = c.season ? `S${c.season} · E${c.episode}` : `${Math.round(c.progress)}% watched`;
+    const titleSafe = esc(c.title), onList = inWatchlist(c.id, c.media);
+    const sub = c.season ? `S${c.season} · E${c.episode}` : `${Math.round(c.progress)}% ${state.uiLang === 'hi' ? 'देखा' : 'watched'}`;
     el.innerHTML = `
-      <img class="card-poster" loading="lazy" src="${esc(posterUrl(c.poster))}" alt="${t}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
+      <img class="card-poster" loading="lazy" src="${esc(posterUrl(c.poster))}" alt="${titleSafe}" onerror="this.onerror=null;this.src='${placeholderPoster()}'">
       ${c.media==='anime'?'<span class="card-badge anime">ANIME</span>':c.media==='tv'?'<span class="card-badge tv">TV</span>':'<span class="card-badge">MOVIE</span>'}
       ${c.vote_average?`<span class="card-rating">${STAR} ${Number(c.vote_average).toFixed(1)}</span>`:''}
       <div class="card-actions"><button class="card-action wl-btn ${onList?'in-list':''}" data-id="${c.id}" data-media="${c.media}">${onList?CHECK:PLUS}</button></div>
-      <div class="card-info"><div class="card-title">${t}</div><div class="card-sub"><span>${year(c.release_date)}</span><span class="dot"></span><span>${esc(sub)}</span></div></div>
-      <div class="card-hover-bar"><button class="mini-btn play" data-action="play">${PLAY_SM} Resume</button><button class="mini-btn" data-action="info">Details</button></div>`;
+      <div class="card-info"><div class="card-title">${titleSafe}</div><div class="card-sub"><span>${year(c.release_date)}</span><span class="dot"></span><span>${esc(sub)}</span></div></div>
+      <div class="card-hover-bar"><button class="mini-btn play" data-action="play">${PLAY_SM} ${esc(t('resume'))}</button><button class="mini-btn" data-action="info">${esc(t('details'))}</button></div>`;
     el.onclick = (e) => {
       if (e.target.closest('.wl-btn')) { toggleWatchlist(c); return; }
       const resume = !!e.target.closest('[data-action="play"]');
       if (c.media === 'anime') {
-        if (resume) openPlayer({ title: c.title, media:'anime', malId: c.id, backdrop: posterUrl(c.backdrop) });
-        else openAnimeDetail(c.id, null, c.title);
+        if (resume) openPlayer({ title: c.title, media:'anime', animeId: c.id, animeSource: c.animeSource || 'mal', backdrop: posterUrl(c.backdrop || c.poster) });
+        else openAnimeDetail(c.id, null, c.title, c.animeSource || 'mal');
       } else {
         if (resume) openPlayer({ title: c.title, media: c.media, tmdbId: c.id, backdrop: posterUrl(c.backdrop), season: c.season||1, episode: c.episode||1 });
         else openDetail(c.media, c.id, c.title);
@@ -589,8 +766,8 @@
     const row = document.getElementById(rowId); if (!row) return;
     row.innerHTML = '';
     const d = document.createElement('div'); d.className='row-error';
-    d.innerHTML = '<span>Could not load right now.</span>';
-    const b = document.createElement('button'); b.textContent = 'Retry'; b.onclick = retryFn;
+    d.innerHTML = `<span>${esc(t('couldNotLoad'))}</span>`;
+    const b = document.createElement('button'); b.textContent = t('retry'); b.onclick = retryFn;
     d.appendChild(b); row.appendChild(d);
   }
   function loadRow(apiPath, rowId, cardFn) {
@@ -599,7 +776,7 @@
       api(apiPath).then((data) => {
         let items = data.items || data.data || data.results || [];
         // filter out unreleased / future titles so user never sees a "not found"
-        items = items.filter(isReleased);
+        if (rowId !== 'rowUpcomingRow') items = items.filter(isReleased);
         if (items.length) fillRow(rowId, items.slice(0,20), cardFn);
         else rowError(rowId, tryLoad);
       }).catch((e) => { console.warn(e); rowError(rowId, tryLoad); });
@@ -639,31 +816,24 @@
   function isReleased(item) {
     if (!item) return false;
     const now = Date.now();
-    const WINDOW = 7 * 24 * 60 * 60 * 1000; // allow 1 week of "new"
-    if (item.media_type === 'movie' || item.title) {
-      if (item.release_date) {
-        const t = Date.parse(item.release_date + 'T00:00:00');
-        if (!isNaN(t) && t > now + WINDOW) return false;
-      }
-      return true;
+    const grace = 7 * 24 * 60 * 60 * 1000;
+    const future = (value) => {
+      if (!value) return false;
+      const time = Date.parse(String(value).length === 10 ? value + 'T00:00:00' : value);
+      return Number.isFinite(time) && time > now + grace;
+    };
+    const animeItem = item.media_type === 'anime' || item.mal_id != null || item.anilist_id != null || item.images;
+    if (animeItem) {
+      if (future(item.aired && item.aired.from)) return false;
+      return !(item.status && /not yet aired|upcoming/i.test(item.status));
     }
-    if (item.media_type === 'tv' || item.first_air_date) {
-      if (item.first_air_date) {
-        const t = Date.parse(item.first_air_date + 'T00:00:00');
-        if (!isNaN(t) && t > now + WINDOW) return false;
-      }
-      return true;
-    }
-    // anime (Jikan): status/year
-    if (item.aired && item.aired.from) {
-      const t = Date.parse(item.aired.from);
-      if (!isNaN(t) && t > now + WINDOW) return false;
-    }
-    if (item.status && /Not yet aired/i.test(item.status)) return false;
+    if (item.media_type === 'tv' || item.first_air_date) return !future(item.first_air_date);
+    if (item.media_type === 'movie' || item.release_date || item.title) return !future(item.release_date);
     return true;
   }
 
   function loadHome() {
+    state.homeLoaded = true;
     clearHomeRowObservers();
     ['rowTrendingRow','rowPopularRow','rowTopRatedRow','rowTvRow','rowTvTopRow','rowAnimeRow','rowAiringRow','rowUpcomingRow','rowHorrorRow','rowComedyRow','rowActionRow','rowDramaRow'].forEach(skelRow);
     renderContinueRow();
@@ -705,7 +875,7 @@
     // Drama is a small promotional row; load it in the background without
     // delaying the first catalogue paint.
     window.setTimeout(() => {
-      api('/drama/popular?lang=ko').then((d) => {
+      api('/drama/popular?origin=ko').then((d) => {
         const items = d.results || [];
         if (items.length) { fillRow('rowDramaRow', items.slice(0,16), tmdbCard); $('#dramaPromo').classList.remove('hidden'); }
       }).catch(() => {});
@@ -742,19 +912,42 @@
   function renderHero(animate=true) {
     const it = state.heroItems[state.heroIndex]; if (!it) return;
     const media = mediaOf(it), bg = $('#heroBg'), url = backdropUrl(it.backdrop_path||it.poster_path);
-    const apply = () => { bg.style.backgroundImage = `url(${url})`; bg.classList.add('loaded'); setTimeout(() => bg.classList.add('zoom'),80); };
-    if (animate) { bg.classList.remove('loaded','zoom'); bg.style.opacity=0; setTimeout(()=>{bg.style.opacity=''; apply();},300); } else apply();
+    const imageToken = state.heroImageToken = (state.heroImageToken || 0) + 1;
+    let imageApplied = false;
+    const apply = () => {
+      if (imageApplied || state.heroImageToken !== imageToken) return;
+      imageApplied = true;
+      bg.classList.remove('loaded','zoom');
+      bg.style.opacity='0';
+      window.setTimeout(() => {
+        if (state.heroImageToken !== imageToken) return;
+        bg.style.backgroundImage = url ? `url(${url})` : 'linear-gradient(135deg,#141421,#07070c)';
+        bg.style.opacity='';
+        requestAnimationFrame(() => {
+          bg.classList.add('loaded');
+          window.setTimeout(() => bg.classList.add('zoom'), 80);
+        });
+      }, animate ? 120 : 0);
+    };
+    if (url) {
+      const preloader = new Image();
+      preloader.decoding = 'async';
+      preloader.onload = apply;
+      preloader.onerror = apply;
+      preloader.src = url;
+      if (preloader.complete) apply();
+    } else apply();
     const tags = $('#heroTags'), match = matchScore(it);
-    tags.innerHTML = `<span class="hero-tag">Featured</span><span class="hero-tag gold">${media==='tv'?'Series':'Film'}</span>${match?`<span class="hero-tag">${match}% Match</span>`:''}`;
+    tags.innerHTML = `<span class="hero-tag">${esc(t('featured'))}</span><span class="hero-tag gold">${esc(media==='tv'?t('series'):t('film'))}</span>${match?`<span class="hero-tag">${match}% ${esc(t('match'))}</span>`:''}`;
     $('#heroTitle').textContent = titleOf(it);
     const cert = certificationOf(it);
-    $('#heroMeta').innerHTML = `<span class="match">${match?match+'% Match':'New'}</span><span>${year(it.release_date||it.first_air_date)}</span>${cert?`<span class="chip" style="padding:2px 8px">${esc(cert)}</span>`:''}<span>${media==='tv'?'TV Series':'Movie'}</span>${it.vote_average?`<span class="rating">${STAR} ${it.vote_average.toFixed(1)}</span>`:''}`;
+    $('#heroMeta').innerHTML = `<span class="match">${match?match+'% '+esc(t('match')):esc(t('new'))}</span><span>${year(it.release_date||it.first_air_date)}</span>${cert?`<span class="chip" style="padding:2px 8px">${esc(cert)}</span>`:''}<span>${esc(media==='tv'?t('series'):t('movie'))}</span>${it.vote_average?`<span class="rating">${STAR} ${it.vote_average.toFixed(1)}</span>`:''}`;
     $('#heroDesc').textContent = it.overview || '';
     if (animate) { const hc=$('#heroContent'); hc.classList.remove('hero-anim'); void hc.offsetWidth; hc.classList.add('hero-anim'); }
     $$('#heroDots button').forEach((b,i)=>b.classList.toggle('active', i===state.heroIndex));
     const onList = inWatchlist(it.id, media), listBtn = $('#heroList');
     listBtn.classList.toggle('active', onList); listBtn.innerHTML = onList?CHECK:PLUS;
-    listBtn.title = onList?'In My List':'Add to My List';
+    listBtn.title = onList ? t('inMyList') : t('addMyList');
     listBtn.onclick = () => toggleWatchlist(it);
     $('#heroPlay').onclick = () => { recordContinue(it); openPlayer({ title: titleOf(it), media, tmdbId: it.id, backdrop: backdropUrl(it.backdrop_path||it.poster_path) }); };
     $('#heroInfo').onclick = () => openDetail(media, it.id, titleOf(it));
@@ -770,7 +963,11 @@
   function hideAllViews() {
     ['#content','#resultsView','#mylistView','#playlistsView','#playlistDetailView','#liveView'].forEach((s)=>$(s).classList.add('hidden'));
   }
-  function showHome() { hideAllViews(); $('#content').classList.remove('hidden'); window.scrollTo({top:0,behavior:'smooth'}); closeMobileMenu(); }
+  function showHome() {
+    hideAllViews(); $('#content').classList.remove('hidden');
+    if (!state.homeLoaded) loadHome();
+    window.scrollTo({top:0,behavior:'smooth'}); closeMobileMenu();
+  }
   function closeMobileMenu() {
     $('#hamburger').classList.remove('open'); $('#mobileMenu').classList.remove('open');
     $('#navbar').classList.remove('menu-open'); $('#hamburger').setAttribute('aria-expanded','false');
@@ -778,7 +975,7 @@
   $$('#navLinks a').forEach((a)=>{ a.onclick = (e)=>{ e.preventDefault(); navigate(a.dataset.nav); }; });
   const mm = $('#mobileMenu');
   $$('#navLinks a').forEach((a)=>{
-    const b = document.createElement('a'); b.href='#'+a.dataset.nav; b.dataset.nav=a.dataset.nav; b.innerHTML = a.innerHTML;
+    const b = document.createElement('a'); b.href='#'+a.dataset.nav; b.dataset.nav=a.dataset.nav; b.dataset.i18n=a.dataset.i18n||a.dataset.nav; b.innerHTML = a.innerHTML;
     b.onclick=(e)=>{e.preventDefault(); navigate(a.dataset.nav);}; mm.appendChild(b);
   });
   $$('.footer-links a').forEach((a)=>{ a.onclick=(e)=>{e.preventDefault(); navigate(a.dataset.nav);}; });
@@ -788,21 +985,28 @@
     $('#hamburger').setAttribute('aria-expanded', open?'true':'false');
   };
 
-  function navigate(nav) {
-    location.hash = nav; setNav(nav); closeMobileMenu();
+  function renderRoute(nav) {
+    nav = String(nav || 'home').toLowerCase();
+    setNav(nav); closeMobileMenu();
     if (nav==='home') showHome();
     else if (nav==='mylist') showMyList();
     else if (nav==='playlists') showPlaylists();
     else if (nav==='live') showLiveTV();
     else if (nav==='drama') showDrama();
-    else showResultsForNav(nav);
+    else if (['movies','tv','anime'].includes(nav)) showResultsForNav(nav);
+    else showHome();
+  }
+  function navigate(nav) {
+    const target = '#' + nav;
+    if (location.hash === target) renderRoute(nav);
+    else location.hash = nav; // hashchange renders exactly once
   }
 
   function showResultsForNav(nav) {
     hideAllViews(); $('#resultsView').classList.remove('hidden');
     window.scrollTo({top:0});
-    const titles = { movies:'Movies', tv:'TV Shows', anime:'Anime' };
-    $('#resultsTitle').textContent = titles[nav] || 'Browse';
+    const titles = { movies:t('movies'), tv:t('tvShows'), anime:t('anime') };
+    $('#resultsTitle').textContent = titles[nav] || t('browse');
     $('#resultsEmpty').classList.add('hidden'); $('#resultsMore').classList.add('hidden');
     const grid = $('#resultsGrid'); grid.innerHTML = '';
     for (let i=0;i<18;i++){ const s=document.createElement('div'); s.className='skel-card skel'; grid.appendChild(s); }
@@ -816,11 +1020,12 @@
   function showDrama() {
     hideAllViews(); $('#resultsView').classList.remove('hidden');
     window.scrollTo({top:0});
-    $('#resultsTitle').textContent = 'K-Drama & Asian Dramas';
+    $('#resultsTitle').textContent = t('asianDramas');
     $('#genreChips').classList.remove('hidden');
     const wrap = $('#genreChips'); wrap.innerHTML = '';
     const langs = [
-      ['ko','Korean'],['ja','Japanese'],['zh','Chinese'],['hi','Indian'],['tr','Turkish'],['th','Thai'],['all','All Dramas']
+      ['ko',t('korean')],['ja',t('japanese')],['zh',t('chinese')],['hi',t('indian')],
+      ['tr',t('turkish')],['th',t('thai')],['all',t('allDramas')]
     ];
     let cur = 'ko';
     const mkChip = (code, label, active=false) => {
@@ -838,14 +1043,14 @@
     const grid = $('#resultsGrid');
     grid.innerHTML='';
     for (let i=0;i<18;i++){ const s=document.createElement('div'); s.className='skel-card skel'; grid.appendChild(s); }
-    const path = lang==='all' ? '/drama/popular' : `/drama/popular?lang=${lang}`;
+    const path = lang==='all' ? '/drama/popular' : `/drama/popular?origin=${lang}`;
     api(path).then((d)=>{
       grid.innerHTML='';
       const items = d.results||[];
       if (!items.length) { $('#resultsEmpty').classList.remove('hidden'); return; }
       $('#resultsEmpty').classList.add('hidden');
       items.forEach((it)=>grid.appendChild(tmdbCard(it)));
-    }).catch(()=>{ grid.innerHTML='<div class="results-empty">Could not load dramas.</div>'; });
+    }).catch(()=>{ grid.innerHTML=`<div class="results-empty">${esc(t('couldNotLoad'))}</div>`; });
   }
 
   function loadBrowsePage(apiPath, isAnime=false, append=false) {
@@ -866,12 +1071,9 @@
      .finally(()=>{ state.browse.loading=false; });
   }
   $('#resultsMore').onclick = () => {
-    if (state.browse.loading) return;
+    if (state.browse.loading || !state.browse.apiPath) return;
     state.browse.page++;
-    const isAnime = state.browse.kind==='anime';
-    let path = state.browse.apiPath.split('?')[0];
-    if (state.browse.genre) path += isAnime ? `/anime/genre?g=${state.browse.genre.mal_id}&name=${encodeURIComponent(state.browse.genre.name)}` : `/${state.browse.kind}/genre?g=${state.browse.genre}`;
-    loadBrowsePage(path, isAnime, true);
+    loadBrowsePage(state.browse.apiPath, state.browse.kind==='anime', true);
   };
   $('#resultsBack').onclick = () => navigate('home');
 
@@ -884,55 +1086,79 @@
     };
     if (nav==='movies'||nav==='tv') {
       const media = nav==='tv'?'tv':'movie'; state.browse.kind=media;
-      mk('All', ()=>loadBrowsePage(`/${media}/popular`), true);
+      mk(t('all'), ()=>loadBrowsePage(`/${media}/popular`), true);
       try { const g = await api('/genres?media='+media); (g.genres||[]).forEach((x)=>mk(x.name, ()=>{ state.browse.genre=x.id; loadBrowsePage(`/${media}/genre?g=${x.id}`); })); } catch(e){}
     } else if (nav==='anime') {
       state.browse.kind='anime';
-      mk('Top All', ()=>loadBrowsePage('/anime/top', true), true);
+      mk(t('topAll'), ()=>loadBrowsePage('/anime/top', true), true);
       try { const g = await api('/anime/genres'); (g.genres||[]).slice(0,18).forEach((x)=>mk(x.name, ()=>{ state.browse.genre=x; loadBrowsePage(`/anime/genre?g=${x.mal_id}&name=${encodeURIComponent(x.name)}`, true); })); } catch(e){}
     } else wrap.classList.add('hidden');
   }
 
   /* ================= SEARCH ================= */
   const searchWrap=$('#searchWrap'), searchInput=$('#searchInput');
-  $('#searchToggle').onclick=()=>{ searchWrap.classList.toggle('open'); if(searchWrap.classList.contains('open')) setTimeout(()=>searchInput.focus(),200); else searchInput.value=''; };
+  $('#searchToggle').onclick=()=>{
+    searchWrap.classList.toggle('open');
+    if(searchWrap.classList.contains('open')) setTimeout(()=>searchInput.focus(),200);
+    else { searchInput.value=''; searchController?.abort(); }
+  };
   document.addEventListener('click',(e)=>{
     if(!searchWrap.classList.contains('open')) return;
     if(e.target.closest('.search-wrap')||e.target.closest('.search-toggle')) return;
     if(!searchInput.value) searchWrap.classList.remove('open');
   });
-  let searchAbort;
+  let searchTimer;
+  let searchController = null;
   let searchRequestId = 0;
   searchInput.addEventListener('input',(e)=>{
-    const q=e.target.value.trim(); searchWrap.classList.toggle('has-value',!!q);
-    clearTimeout(searchAbort); if(!q) return;
-    searchAbort=setTimeout(()=>doSearch(q),350);
+    const q=e.target.value.trim();
+    searchWrap.classList.toggle('has-value',!!q);
+    clearTimeout(searchTimer);
+    if(!q) { searchController?.abort(); return; }
+    searchTimer=setTimeout(()=>doSearch(q),350);
   });
-  searchInput.addEventListener('keydown',(e)=>{ if(e.key==='Enter') doSearch(searchInput.value.trim()); if(e.key==='Escape'){ searchInput.value=''; searchInput.blur(); } });
-  $('#searchClear').onclick=()=>{ searchInput.value=''; searchWrap.classList.remove('has-value'); searchInput.focus(); };
+  searchInput.addEventListener('keydown',(e)=>{
+    if(e.key==='Enter') doSearch(searchInput.value.trim());
+    if(e.key==='Escape'){ searchInput.value=''; searchInput.blur(); searchController?.abort(); }
+  });
+  $('#searchClear').onclick=()=>{
+    searchInput.value=''; searchWrap.classList.remove('has-value'); searchController?.abort(); searchInput.focus();
+  };
 
   async function doSearch(q) {
     if(!q) return;
+    searchController?.abort();
+    searchController = new AbortController();
+    const signal = searchController.signal;
     const requestId = ++searchRequestId;
     hideAllViews(); $('#resultsView').classList.remove('hidden');
     $('#genreChips').classList.add('hidden'); $('#resultsMore').classList.add('hidden');
-    $('#resultsTitle').textContent = `Results for “${q}”`;
+    $('#resultsEmpty').classList.add('hidden');
+    $('#resultsTitle').textContent = t('resultsFor', { query: q });
     const grid=$('#resultsGrid'); grid.innerHTML='';
-    for (let i=0;i<18;i++){ const s=document.createElement('div'); s.className='skel-card skel'; grid.appendChild(s); }
+    for (let i=0;i<18;i++){ const skeleton=document.createElement('div'); skeleton.className='skel-card skel'; grid.appendChild(skeleton); }
     window.scrollTo({top:0});
     try {
-      const r = await api('/search?q='+encodeURIComponent(q));
-      if (requestId !== searchRequestId) return;
+      const [catalogue, animeResult] = await Promise.allSettled([
+        api('/search?q='+encodeURIComponent(q), { signal }),
+        api('/anime/search?q='+encodeURIComponent(q), { signal }),
+      ]);
+      if (requestId !== searchRequestId || signal.aborted) return;
       grid.innerHTML='';
-      const items = (r.results||[]).filter((x)=>x.media_type==='movie'||x.media_type==='tv'||(!x.media_type&&(x.title||x.name)));
-      if (items.length) items.slice(0,30).forEach((it)=>grid.appendChild(tmdbCard(it)));
-      api('/anime/search?q='+encodeURIComponent(q)).then((ar)=>{
-        if (requestId !== searchRequestId) return;
-        (ar.data||[]).slice(0,12).forEach((a)=>grid.appendChild(animeCard(a)));
-        if (!grid.children.length) $('#resultsEmpty').classList.remove('hidden'); else $('#resultsEmpty').classList.add('hidden');
-      }).catch(()=>{ if(!grid.children.length) $('#resultsEmpty').classList.remove('hidden'); });
-      if (!items.length) $('#resultsEmpty').classList.remove('hidden');
-    } catch(e) { grid.innerHTML='<div class="results-empty">Search failed: '+esc(e.message)+'</div>'; }
+      const movies = catalogue.status === 'fulfilled'
+        ? (catalogue.value.results||[]).filter((x)=>x.media_type==='movie'||x.media_type==='tv'||(!x.media_type&&(x.title||x.name))).slice(0,30)
+        : [];
+      const animeItems = animeResult.status === 'fulfilled' ? (animeResult.value.data||[]).slice(0,12) : [];
+      movies.forEach((item)=>grid.appendChild(tmdbCard(item)));
+      animeItems.forEach((item)=>grid.appendChild(animeCard(item)));
+      $('#resultsEmpty').classList.toggle('hidden', grid.children.length > 0);
+      if (!grid.children.length && catalogue.status === 'rejected' && animeResult.status === 'rejected') {
+        grid.innerHTML = `<div class="results-empty">${esc(t('searchFailed'))}</div>`;
+        $('#resultsEmpty').classList.add('hidden');
+      }
+    } catch(e) {
+      if (e.name !== 'AbortError') grid.innerHTML=`<div class="results-empty">${esc(t('searchFailed'))}</div>`;
+    }
   }
 
   /* ================= MY LIST ================= */
@@ -943,7 +1169,7 @@
     $('#mylistEmpty').classList.add('hidden');
     state.watchlist.forEach((it)=>{
       if (it.media==='anime') {
-        grid.appendChild(animeCard({ mal_id:it.id, title:it.title, title_english:it.title, images:{jpg:{image_url:posterUrl(it.poster)}}, score:it.vote_average, year:year(it.release_date) }));
+        grid.appendChild(animeCard({ mal_id:(it.animeSource||'mal')==='mal'?it.id:null, anilist_id:it.animeSource==='anilist'?it.id:null, anime_source:it.animeSource||'mal', title:it.title, title_english:it.title, images:{jpg:{image_url:posterUrl(it.poster)}}, score:it.vote_average, year:year(it.release_date) }));
       } else {
         grid.appendChild(tmdbCard({ id:it.id, media_type:it.media, title:it.title, name:it.title, poster_path:it.poster, backdrop_path:it.backdrop, vote_average:it.vote_average, release_date:it.release_date, first_air_date:it.release_date }));
       }
@@ -960,8 +1186,8 @@
     if (!state.playlists.length) {
       wrap.innerHTML = `<div class="results-empty" style="padding:60px 20px">
         <div style="font-size:40px;margin-bottom:10px">🎬</div>
-        <p style="font-size:15px;color:var(--muted)">You haven't created any playlists yet.</p>
-        <p style="font-size:13px;color:var(--muted-2);margin-top:6px">Make a "Weekend Watch", "Date Night", or "Anime Marathon" list.</p>
+        <p style="font-size:15px;color:var(--muted)">${esc(t('emptyPlaylists'))}</p>
+        <p style="font-size:13px;color:var(--muted-2);margin-top:6px">${esc(t('emptyPlaylistHint'))}</p>
       </div>`;
       return;
     }
@@ -977,7 +1203,7 @@
         </div>
         <div class="pl-meta">
           <div class="pl-name">${esc(pl.name)}</div>
-          <div class="pl-info">${pl.items.length} title${pl.items.length===1?'':'s'}</div>
+          <div class="pl-info">${t(pl.items.length===1?'titlesCount':'titlesCountPlural',{count:pl.items.length})}</div>
         </div>
         <button class="pl-del" title="Delete playlist" aria-label="Delete">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -1000,24 +1226,24 @@
     hideAllViews(); $('#playlistDetailView').classList.remove('hidden');
     window.scrollTo({top:0});
     $('#plTitle').textContent = pl.name;
-    $('#plCount').textContent = `${pl.items.length} title${pl.items.length===1?'':'s'}`;
+    $('#plCount').textContent = `${t(pl.items.length===1?'titlesCount':'titlesCountPlural',{count:pl.items.length})}`;
     const grid = $('#plGrid'); grid.innerHTML='';
     if (!pl.items.length) { $('#plEmpty').classList.remove('hidden'); }
     else {
       $('#plEmpty').classList.add('hidden');
       pl.items.forEach((it)=>{
-        if (it.media==='anime') grid.appendChild(animeCard({ mal_id:it.id, title:it.title, title_english:it.title, images:{jpg:{image_url:posterUrl(it.poster)}}, score:it.vote_average, year:year(it.release_date) }));
+        if (it.media==='anime') grid.appendChild(animeCard({ mal_id:(it.animeSource||'mal')==='mal'?it.id:null, anilist_id:it.animeSource==='anilist'?it.id:null, anime_source:it.animeSource||'mal', title:it.title, title_english:it.title, images:{jpg:{image_url:posterUrl(it.poster)}}, score:it.vote_average, year:year(it.release_date) }));
         else grid.appendChild(tmdbCard({ id:it.id, media_type:it.media, title:it.title, name:it.title, poster_path:it.poster, backdrop_path:it.backdrop, vote_average:it.vote_average, release_date:it.release_date, first_air_date:it.release_date }));
       });
     }
     $('#plRename').onclick = () => {
-      const n = prompt('Rename playlist:', pl.name);
+      const n = prompt(state.uiLang==='hi'?'प्लेलिस्ट का नया नाम:':'Rename playlist:', pl.name);
       if (n && n.trim()) { pl.name = n.trim(); savePlaylists(); openPlaylist(plId); }
     };
     $('#plBack').onclick = () => showPlaylists();
   }
   $('#createPlaylistBtn').onclick = () => {
-    const name = prompt('Playlist name:', 'My Playlist');
+    const name = prompt(t('playlistName'), state.uiLang==='hi'?'मेरी प्लेलिस्ट':'My Playlist');
     if (name && name.trim()) { const pl = createPlaylist(name.trim()); openPlaylist(pl.id); }
   };
 
@@ -1029,10 +1255,10 @@
     $('#plModalItem').textContent = (item.title||'') + (item.year?` (${item.year})`:'');
     const list = $('#plModalList'); list.innerHTML='';
     if (!state.playlists.length) {
-      list.innerHTML = '<div class="tiny-note" style="padding:8px 2px">No playlists yet — create one below.</div>';
+      list.innerHTML = `<div class="tiny-note" style="padding:8px 2px">${esc(state.uiLang==='hi'?'अभी कोई प्लेलिस्ट नहीं है — नीचे नई बनाएँ।':'No playlists yet — create one below.')}</div>`;
     } else {
       state.playlists.forEach((pl) => {
-        const has = pl.items.some((x)=>x.id===item.id && x.media===item.media);
+        const has = pl.items.some((x)=>String(x.id)===String(item.id) && x.media===item.media);
         const row = document.createElement('button');
         row.className = 'pl-row' + (has?' in':'');
         row.innerHTML = `<span class="pl-row-name">${esc(pl.name)}</span><span class="pl-row-count">${pl.items.length}</span>${has?'<span class="pl-row-check">✓</span>':''}`;
@@ -1048,7 +1274,7 @@
     document.body.style.overflow='hidden';
   }
   $('#plModalNew').onclick = () => {
-    const name = prompt('New playlist name:', 'My Playlist');
+    const name = prompt(t('newPlaylistName'), state.uiLang==='hi'?'मेरी प्लेलिस्ट':'My Playlist');
     if (name && name.trim()) {
       const pl = createPlaylist(name.trim());
       if (pendingPlaylistItem) addToPlaylist(pl.id, pendingPlaylistItem);
@@ -1067,7 +1293,7 @@
       const d = await api('/details?media='+media+'&id='+encodeURIComponent(id));
       state.detail = { media, id: d.id||id, title: d.title||d.name||fallbackTitle };
       renderDetail(d);
-    } catch(e) { body.innerHTML='<div class="section-label" style="color:#ff8690">Could not load details.</div>'; }
+    } catch(e) { body.innerHTML=`<div class="section-label" style="color:#ff8690">${esc(t('detailsFailed'))}</div>`; }
   }
   function renderDetail(d) {
     const body=$('#modalBody'), media=state.detail.media, isTv=media==='tv'||!!d.number_of_seasons;
@@ -1090,18 +1316,18 @@
         <span class="rating" style="color:var(--gold);font-weight:800">${STAR} ${rating}</span>
       </div>
       <div class="modal-genres">${genres}</div>
-      <p class="modal-desc">${esc(d.overview||'No synopsis available.')}</p>
+      <p class="modal-desc">${esc(d.overview||t('noSynopsis'))}</p>
       <div class="modal-actions">
-        <button class="btn btn-play" id="detailPlay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Watch Now</button>
-        <button class="btn btn-ghost" id="detailList">${onList?'In My List':'My List'}</button>
+        <button class="btn btn-play" id="detailPlay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${esc(t('watchNow'))}</button>
+        <button class="btn btn-ghost" id="detailList">${esc(onList?t('inMyList'):t('myList'))}</button>
         <button class="btn btn-ghost" id="detailPlaylist">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="M3 10h18M8 18h4M8 14h7M19 16v6M16 19h6"/></svg>
-          Playlist
+          ${esc(t('playlists'))}
         </button>
       </div>
       <div id="detailExtra"></div>`;
     $('#detailPlay').onclick = () => { recordContinue(d); closeModal(); openPlayer({ title:d.title||d.name, media, tmdbId:d.id, backdrop:backdropUrl(d.backdrop_path||d.poster_path) }); };
-    $('#detailList').onclick = () => { toggleWatchlist({...d, id:d.id, media_type:media}); const b=$('#detailList'); setTimeout(()=>{ b.textContent=inWatchlist(d.id,media)?'In My List':'My List'; },0); };
+    $('#detailList').onclick = () => { toggleWatchlist({...d, id:d.id, media_type:media}); const b=$('#detailList'); setTimeout(()=>{ b.textContent=inWatchlist(d.id,media)?t('inMyList'):t('myList'); },0); };
     $('#detailPlaylist').onclick = () => openPlaylistModal({ id:d.id, media, title:d.title||d.name, poster:d.poster_path||'', backdrop:d.backdrop_path||'', vote_average:d.vote_average, release_date:d.release_date||d.first_air_date, year:year(d.release_date||d.first_air_date) });
     renderDetailExtra(d, isTv);
   }
@@ -1109,7 +1335,7 @@
     const wrap=$('#detailExtra');
     if (isTv && d.number_of_seasons) {
       const blk = document.createElement('div');
-      blk.innerHTML = `<div class="section-label">Seasons &amp; Episodes — tap an episode to watch</div><div class="season-tabs" id="seasonTabs"></div><div class="ep-list" id="epList"></div>`;
+      blk.innerHTML = `<div class="section-label">${esc(t('seasonsEpisodes'))}</div><div class="season-tabs" id="seasonTabs"></div><div class="ep-list" id="epList"></div>`;
       wrap.appendChild(blk);
       const seasonList = (d.seasons||[]).filter(s=>s.season_number>0).sort((a,b)=>a.season_number-b.season_number);
       const tabs=$('#seasonTabs');
@@ -1125,7 +1351,7 @@
     const cast=(d.credits&&d.credits.cast)||[];
     if (cast.length) {
       const c=document.createElement('div');
-      c.innerHTML=`<div class="section-label">Top Cast</div><div class="cast-row" id="castRow"></div>`; wrap.appendChild(c);
+      c.innerHTML=`<div class="section-label">${esc(t('topCast'))}</div><div class="cast-row" id="castRow"></div>`; wrap.appendChild(c);
       cast.slice(0,12).forEach((p)=>{
         const div=document.createElement('div'); div.className='cast-card';
         div.innerHTML=`<img class="cast-avatar" loading="lazy" src="${p.profile_path?CAST_IMG+p.profile_path:placeholderPoster()}" alt="${esc(p.name)}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="cast-name">${esc(p.name)}</div><div class="cast-role">${esc(p.character||'')}</div>`;
@@ -1136,7 +1362,7 @@
       .filter((v,i,arr)=>arr.findIndex(x=>x.id===v.id)===i).slice(0,12);
     if (similar.length) {
       const s=document.createElement('div');
-      s.innerHTML=`<div class="section-label">More Like This</div><div class="mini-row" id="similarRow"></div>`; wrap.appendChild(s);
+      s.innerHTML=`<div class="section-label">${esc(t('moreLikeThis'))}</div><div class="mini-row" id="similarRow"></div>`; wrap.appendChild(s);
       similar.forEach((it)=>{
         const div=document.createElement('div'); div.className='mini-card'; div.tabIndex=0;
         div.innerHTML=`<img loading="lazy" src="${esc(posterUrl(it.poster_path))}" alt="${esc(titleOf(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="mc-title">${esc(titleOf(it))}</div>`;
@@ -1149,7 +1375,7 @@
   }
   async function loadEpisodes(tvId, seasonNum) {
     const list=$('#epList');
-    list.innerHTML='<div class="row-error" style="border:none;padding:8px"><span>Loading episodes…</span></div>';
+    list.innerHTML=`<div class="row-error" style="border:none;padding:8px"><span>${esc(t('loadingEpisodes'))}</span></div>`;
     try {
       const data = await api(`/tv/season?id=${tvId}&s=${seasonNum}`); list.innerHTML='';
       (data.episodes||[]).forEach((ep)=>{
@@ -1161,39 +1387,58 @@
         el.onkeydown=(e)=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();play();} };
         list.appendChild(el);
       });
-      if (!(data.episodes||[]).length) list.innerHTML='<div class="row-error" style="border:none"><span>No episode data for this season.</span></div>';
-    } catch(e) { list.innerHTML='<div class="row-error" style="border:none"><span>Could not load episodes.</span></div>'; }
+      if (!(data.episodes||[]).length) list.innerHTML=`<div class="row-error" style="border:none"><span>${esc(t('noEpisodeData'))}</span></div>`;
+    } catch(e) { list.innerHTML=`<div class="row-error" style="border:none"><span>${esc(t('episodesFailed'))}</span></div>`; }
   }
 
-  async function openAnimeDetail(malId, img, title) {
+  async function openAnimeDetail(animeId, img, title, source = 'mal') {
     showModal();
     const bodyEl=$('#modalBody');
     bodyEl.innerHTML='<div class="skel" style="height:220px;border-radius:14px;margin-bottom:90px"></div>';
     try {
-      const r = await api('/anime/details?id='+encodeURIComponent(malId));
-      const a = r.data;
-      const aTitle = a.title_english||a.title||title;
-      const backdrop=(a.trailer&&a.trailer.images&&a.trailer.images.maximum_image_url)||(a.images&&a.images.jpg&&(a.images.jpg.large_image_url||a.images.jpg.image_url))||'';
+      const r = await api(`/anime/details?id=${encodeURIComponent(animeId)}&source=${encodeURIComponent(source)}`);
+      const a = r.data || {};
+      const ref = animeRef({ ...a, id: animeId, anime_source: a.anime_source || source });
+      const aTitle = a.title_english||a.title||title||'Anime';
+      const backdrop=a.banner_image||(a.images&&a.images.jpg&&(a.images.jpg.large_image_url||a.images.jpg.image_url))||img||'';
       const genres=(a.genres||[]).map((g)=>`<span class="chip">${esc(g.name)}</span>`).join('');
+      const synopsis = String(a.synopsis || t('noSynopsis'))
+        .replace(/<br\s*\/?\s*>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\[written by.*?\]/i,'')
+        .trim();
       $('#modalBackdrop').style.backgroundImage=backdrop?`url(${backdrop})`:'none';
-      const onList=inWatchlist(malId,'anime');
-      state.detail={media:'anime',id:malId,title:aTitle};
+      const onList=inWatchlist(ref.id,'anime');
+      state.detail={media:'anime',id:ref.id,title:aTitle,animeSource:ref.source};
       bodyEl.innerHTML = `
         <h2 class="modal-title" id="modalTitle">${esc(aTitle)}</h2>
-        <div class="modal-meta"><span>Anime</span><span>${a.year||(a.aired&&a.aired.from?year(a.aired.from):'—')}</span>
+        <div class="modal-meta"><span>${esc(t('anime'))}</span><span>${a.year||(a.aired&&a.aired.from?year(a.aired.from):'—')}</span>
           <span class="rating" style="color:var(--gold);font-weight:800">${STAR} ${a.score||'—'}</span>
-          <span>${esc(a.type||'TV')}</span>${a.status?`<span>${esc(a.status)}</span>`:''}<span>${a.episodes||'?'} episodes</span></div>
+          <span>${esc(a.type||'TV')}</span>${a.status?`<span>${esc(a.status)}</span>`:''}<span>${a.episodes||'?'} ${esc(t('episodes').toLowerCase())}</span></div>
         <div class="modal-genres">${genres}</div>
-        <p class="modal-desc">${esc((a.synopsis||'No synopsis available.').replace(/\[written by.*?\]/i,'').trim())}</p>
+        <p class="modal-desc">${esc(synopsis || t('noSynopsis'))}</p>
         <div class="modal-actions">
-          <button class="btn btn-play" id="animePlay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Watch Now</button>
-          <button class="btn btn-ghost" id="animeList">${onList?'In My List':'My List'}</button>
-          ${a.url?`<a class="btn btn-ghost" href="${esc(a.url)}" target="_blank" rel="noopener">MyAnimeList</a>`:''}
+          <button class="btn btn-play" id="animePlay"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> ${esc(t('watchNow'))}</button>
+          <button class="btn btn-ghost" id="animeList">${esc(onList?t('inMyList'):t('myList'))}</button>
+          ${a.url?`<a class="btn btn-ghost" href="${esc(a.url)}" target="_blank" rel="noopener">${ref.source==='mal'?'MyAnimeList':'AniList'}</a>`:''}
         </div>
         <div id="detailExtra"></div>`;
-      $('#animePlay').onclick=()=>{ recordContinue({id:malId,media_type:'anime',title:aTitle,vote_average:a.score,release_date:String(a.year||'')}); closeModal(); openPlayer({title:aTitle,media:'anime',malId,backdrop}); };
-      $('#animeList').onclick=()=>{ toggleWatchlist({id:malId,media_type:'anime',title:aTitle,poster_path:backdrop}); const b=$('#animeList'); setTimeout(()=>{b.textContent=inWatchlist(malId,'anime')?'In My List':'My List';},0); };
-    } catch(e) { bodyEl.innerHTML='<div class="section-label" style="color:#ff8690">Could not load details.</div>'; }
+      const animeItem={
+        id:ref.id, media_type:'anime', anime_source:ref.source, title:aTitle, poster_path:backdrop,
+        vote_average:Number(a.score)||0, release_date:String(a.year||''),
+      };
+      $('#animePlay').onclick=()=>{
+        recordContinue(animeItem,{ animeSource:ref.source });
+        closeModal();
+        openPlayer({title:aTitle,media:'anime',animeId:ref.id,animeSource:ref.source,backdrop});
+      };
+      $('#animeList').onclick=()=>{
+        toggleWatchlist(animeItem);
+        const b=$('#animeList'); setTimeout(()=>{b.textContent=inWatchlist(ref.id,'anime')?t('inMyList'):t('myList');},0);
+      };
+    } catch(e) {
+      bodyEl.innerHTML=`<div class="section-label" style="color:#ff8690">${esc(t('detailsFailed'))}</div>`;
+    }
   }
 
   /* ============================================================
@@ -1208,11 +1453,15 @@
   function buildEmbedUrl(src) {
     const p=state.player, s=src||activeSource(), id=p.tmdbId;
     const lang = p.audioLang || '';
-    return p.media==='movie' ? s.movie(id, lang) : s.tv(id, p.season||1, p.episode||1, lang);
+    let url = p.media==='movie' ? s.movie(id, lang) : s.tv(id, p.season||1, p.episode||1, lang);
+    // Only VidLink documents the language query used by this app. Do not
+    // append unknown parameters to fallback providers because that can make
+    // an otherwise healthy video fail to load.
+    return url;
   }
   function showPlayerLoading(text) {
     const el=$('#playerLoading'); el.classList.add('show');
-    $('#plSourceName').textContent = text || (state.player.source===AUTO_ID ? 'Picking best server…' : activeSource().name);
+    $('#plSourceName').textContent = text || (state.player.source===AUTO_ID ? t('pickingServer') : activeSource().name);
   }
   function hidePlayerLoading() { $('#playerLoading').classList.remove('show'); }
 
@@ -1234,87 +1483,80 @@
       };
       wrap.appendChild(b);
     };
-    mkChip(AUTO_ID, 'Auto (best)', '#22d3ee', true);
+    mkChip(AUTO_ID, t('autoBest'), '#22d3ee', true);
     orderedSources().forEach((s)=>mkChip(s.id, s.name, s.color, false));
   }
 
-  function setFrameSource(url) {
+  function setFrameSource(url, token) {
     return new Promise((resolve) => {
       const frame = $('#playerFrame');
       let settled = false;
-      // Detect if embed tries to popup / navigate top (sandbox blocks it,
-      // but window blur tells us the source attempted a redirect)
-      let sawPopup = false;
-      const onBlur = () => { sawPopup = true; };
-      window.addEventListener('blur', onBlur);
-      const cleanup = () => {
-        clearTimeout(watchdog);
-        frame.onload = null;
-        frame.onerror = null;
-        window.removeEventListener('blur', onBlur);
-      };
+      let watchdog;
       const done = (ok) => {
-        if (settled) return; settled = true; cleanup();
-        resolve(ok && !sawPopup);
+        if (settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        if (frame.onload === onLoad) frame.onload = null;
+        if (frame.onerror === onError) frame.onerror = null;
+        resolve(Boolean(ok));
       };
-      // 6 second watchdog per source, then auto-fail to next in Auto mode
-      const watchdog = setTimeout(() => done(false), 6000);
-      frame.onload = () => {
-        // about:blank fires first ("1"), real URL fires second ("2")
-        if (frame.dataset.loading === '1') {
-          frame.dataset.loading = '2';
-          frame.src = url;
-        } else {
-          frame.dataset.loading = '0';
-          // give the embedded player a brief moment to render its own video
-          setTimeout(() => done(true), 400);
-        }
+      const onLoad = () => {
+        if (!state.player.active || state.player.loadToken !== token) return done(false);
+        // Cross-origin frames do not expose playback state. A completed frame
+        // navigation is the reliable browser signal; the user can still use
+        // Next server if the provider itself reports an unavailable title.
+        window.setTimeout(() => done(true), 350);
       };
-      frame.onerror = () => done(false);
-      frame.dataset.loading = '1';
+      const onError = () => done(false);
+
+      frame.onload = null;
+      frame.onerror = null;
       frame.src = 'about:blank';
+      window.setTimeout(() => {
+        if (!state.player.active || state.player.loadToken !== token) return done(false);
+        frame.onload = onLoad;
+        frame.onerror = onError;
+        watchdog = window.setTimeout(() => done(false), 8000);
+        frame.src = url;
+      }, 45);
     });
   }
 
-  async function trySourceAtIndex(idx) {
+  async function trySourceAtIndex(idx, token) {
     const p = state.player;
     const list = orderedSources();
+    if (!p.active || p.loadToken !== token) return false;
     if (idx >= list.length) {
-      // all servers failed — show a clear, actionable screen inside the player
-      showPlayerLoading('All servers busy');
-      $('#plSourceName').innerHTML = 'Tap <b>Next server</b> below to retry, or pick a specific source.';
-      // drop a retry button directly over the video
+      showPlayerLoading(t('serverBusy'));
+      $('#plSourceName').textContent = `${t('nextServer')} · ${t('tryAgain')}`;
       $$('.pf-inline-retry').forEach(n => n.remove());
       const bar = document.createElement('div');
       bar.className = 'pf-inline-retry';
       bar.innerHTML = `<button class="btn btn-play sm" id="pfInlineRetry">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
-          Try again
+          ${esc(t('tryAgain'))}
         </button>`;
       $('#playerVideoWrap').appendChild(bar);
       $('#pfInlineRetry').onclick = () => {
         bar.remove();
-        if (state.player.source === AUTO_ID) trySourceAtIndex(0);
-        else loadStream(true);
+        loadStream(true);
       };
       return false;
     }
     p.autoIdx = idx;
-    const s = list[idx];
-    showPlayerLoading(`Trying ${s.name}… (${idx+1}/${list.length})`);
-    const url = buildEmbedUrl(s);
+    const source = list[idx];
+    showPlayerLoading(`${state.uiLang === 'hi' ? 'कोशिश' : 'Trying'} ${source.name}… (${idx+1}/${list.length})`);
+    const url = buildEmbedUrl(source);
     $('#playerExt').href = url;
     p._lastSrcAt = Date.now();
-    const ok = await setFrameSource(url);
-    if (!ok && p.source === AUTO_ID) {
-      return trySourceAtIndex(idx + 1);
-    }
+    const ok = await setFrameSource(url, token);
+    if (!p.active || p.loadToken !== token) return false;
+    if (!ok && p.source === AUTO_ID) return trySourceAtIndex(idx + 1, token);
     if (ok) {
       hidePlayerLoading();
-      // briefly show which auto source was picked
-      const note = $('#plSourceName');
       if (p.source === AUTO_ID) {
-        note.textContent = `Playing via ${s.name}`;
+        const note = $('#plSourceName');
+        note.textContent = `${state.uiLang === 'hi' ? 'चल रहा है' : 'Playing via'} ${source.name}`;
         setTimeout(() => { if (!$('#playerLoading').classList.contains('show')) note.textContent = ''; }, 2500);
       }
     }
@@ -1323,15 +1565,14 @@
 
   function loadStream(showLoad=true) {
     const p = state.player;
+    if (!p.active) return;
     if (p.media === 'anime') {
       if (p.animeVideo && p.animeVideo.current) playAnimeVideo(p.animeVideo.current);
       return;
     }
     clearTimeout(p.autoTimer);
+    const token = ++p.loadToken;
     $$('.pf-inline-retry, .player-fallback').forEach(n => n.remove());
-
-    // apply user's popup-protection preference to the iframe
-    const frame = $('#playerFrame');
     applyFramePolicy();
     $('#playerTitle').textContent = p.media==='tv'
       ? `${p.title} — S${String(p.season).padStart(2,'0')}E${String(p.episode).padStart(2,'0')}`
@@ -1339,21 +1580,20 @@
     updatePrevNext();
     if (p.source === AUTO_ID) {
       p.autoIdx = 0;
-      trySourceAtIndex(0);
-    } else {
-      const s = activeSource();
-      showPlayerLoading(s.name);
-      setFrameSource(buildEmbedUrl(s)).then((ok) => {
-        if (!ok) {
-          // fall back to auto
-          state.player.source = AUTO_ID;
-          renderSourceChips();
-          trySourceAtIndex(0);
-        } else {
-          hidePlayerLoading();
-        }
-      });
+      trySourceAtIndex(0, token);
+      return;
     }
+    const source = activeSource();
+    if (showLoad) showPlayerLoading(source.name);
+    setFrameSource(buildEmbedUrl(source), token).then((ok) => {
+      if (!p.active || p.loadToken !== token) return;
+      if (!ok) {
+        p.source = AUTO_ID;
+        renderSourceChips();
+        const nextToken = ++p.loadToken;
+        trySourceAtIndex(0, nextToken);
+      } else hidePlayerLoading();
+    });
   }
 
   function updatePrevNext() {
@@ -1401,20 +1641,48 @@
     const select = $('#pcLang');
     if (!select) return;
     const found = [];
-    const add = (code, label) => {
+    const add = (code, label, preference = false) => {
       code = String(code || '').toLowerCase().slice(0, 2);
       if (!code || found.some((x) => x.code === code)) return;
-      found.push({ code, label: label || AUDIO_NAMES[code] || code.toUpperCase() });
+      found.push({ code, label: label || AUDIO_NAMES[code] || code.toUpperCase(), preference });
     };
-    // TMDB's spoken_languages + original_language are the only languages we
-    // advertise. This avoids showing unsupported fake dub choices.
+    // TMDB lists original/spoken languages, not every dubbed audio track.
+    // Keep those real metadata values and expose Hindi as a clearly labelled
+    // provider preference rather than falsely claiming that every title has it.
     add(detail && detail.original_language, AUDIO_NAMES[detail && detail.original_language]);
     (detail && detail.spoken_languages || []).forEach((x) => add(x.iso_639_1, x.english_name || AUDIO_NAMES[x.iso_639_1]));
-    select.innerHTML = '<option value="">Auto (available)</option>' + found.map((x) => `<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('');
+    add('hi', t('hindiPreferred'), true);
+    add('en', 'English (when provider offers it)', true);
+    select.innerHTML = `<option value="">${esc(t('preferredAudioAuto'))}</option>` + found.map((x) => `<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('');
     const allowed = new Set(found.map((x) => x.code));
     if (!allowed.has(state.player.audioLang)) state.player.audioLang = '';
     select.value = state.player.audioLang;
-    select.title = found.length ? 'Only metadata-listed audio languages are shown' : 'Audio will be selected automatically';
+    select.title = t('audioNote');
+    renderPlayerLanguageOptions();
+  }
+
+  function renderPlayerLanguageOptions() {
+    const select = $('#pcLang');
+    const wrap = $('#playerLanguageOptions');
+    const btn = $('#playerAudioBtn');
+    if (!select || !wrap || !btn) return;
+    wrap.innerHTML = '';
+    Array.from(select.options).forEach((option) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'player-language-option' + (option.value === select.value ? ' active' : '');
+      item.innerHTML = `<span>${option.value ? '◉' : '◌'}</span><b>${esc(option.textContent)}</b>${option.value === select.value ? '<i>✓</i>' : ''}`;
+      item.onclick = () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        $('#playerLanguagePop').classList.add('hidden');
+        renderPlayerLanguageOptions();
+      };
+      wrap.appendChild(item);
+    });
+    const selected = select.options[select.selectedIndex];
+    btn.textContent = select.value ? String(selected && selected.textContent || '').replace(/\s*\(.*?\)/, '').slice(0, 4) : t('audio');
+    btn.title = select.value ? `${t('preferredAudio')}: ${selected.textContent}` : t('preferredAudio');
   }
 
   async function loadPlayerLanguages() {
@@ -1463,11 +1731,12 @@
     } catch(e) { grid.innerHTML='<div class="tiny-note" style="padding:6px 2px">Official options unavailable right now.</div>'; }
   }
 
-  async function openPlayer({title, media, tmdbId, malId, backdrop, season=1, episode=1}) {
+  async function openPlayer({title, media, tmdbId, animeId, malId, animeSource='mal', backdrop, season=1, episode=1}) {
     const p = state.player;
     p.session = (p.session || 0) + 1;
+    const session = p.session;
     p.active = true;
-    p.title = title || 'Now Playing';
+    p.title = title || t('nowPlaying');
     p.backdrop = backdrop || '';
     p.season = season;
     p.episode = episode;
@@ -1476,7 +1745,9 @@
     p.animeVideo = null;
     p.media = media;
     p.tmdbId = tmdbId || null;
-    p.malId = malId || null;
+    p.animeId = animeId || malId || null;
+    p.animeSource = animeSource === 'anilist' ? 'anilist' : 'mal';
+    p.malId = p.animeSource === 'mal' ? p.animeId : null;
 
     $('#playerModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1485,20 +1756,23 @@
     $$('.player-fallback, .pf-inline-retry').forEach((n) => n.remove());
     restoreEpisodePanel();
     restoreMoviePlayerChrome();
-    showPlayerLoading('Preparing…');
+    showPlayerLoading(t('preparing'));
 
-    if (media === 'anime' && malId) {
+    if (media === 'anime') {
+      if (!p.animeId) { renderAnimeFallback(p.title, null, null, p.animeSource); return; }
       $('#playerTitle').textContent = p.title;
-      $('#plSourceName').textContent = 'Loading official anime video…';
+      $('#plSourceName').textContent = t('officialPreview');
       try {
-        const data = await api(`/anime/videos?id=${encodeURIComponent(malId)}&title=${encodeURIComponent(title || '')}`, { noCache: true });
-        p.animeVideo = data || { title: title || 'Anime', trailer: null, episodes: [], official: [] };
+        const data = await api(`/anime/videos?id=${encodeURIComponent(p.animeId)}&source=${encodeURIComponent(p.animeSource)}&title=${encodeURIComponent(title || '')}`, { noCache: true });
+        if (!p.active || p.session !== session) return;
+        p.animeVideo = data || { title: title || t('anime'), trailer: null, episodes: [], official: [] };
         if (data && data.title && data.title !== 'Anime') p.title = data.title;
         $('#playerTitle').textContent = p.title;
         renderAnimePlayer(data);
         loadAnimeRecommendations(p);
       } catch (e) {
-        renderAnimeFallback(p.title, malId, null);
+        if (!p.active || p.session !== session) return;
+        renderAnimeFallback(p.title, p.animeId, null, p.animeSource);
         loadAnimeRecommendations(p);
       }
       clearTimeout(p._loadTimer);
@@ -1512,9 +1786,11 @@
     if (p.media === 'tv') {
       $('#pcEpisodes').classList.remove('hidden');
       await loadPlayerSeasons();
+      if (!p.active || p.session !== session) return;
       if (!p.seasons.some((s) => s.season_number === p.season)) p.season = p.seasons[0].season_number;
       renderSeasonSelect();
       await loadPlayerEpisodes();
+      if (!p.active || p.session !== session) return;
       renderEpisodeChips();
     } else {
       $('#pcEpisodes').classList.add('hidden');
@@ -1544,6 +1820,7 @@
     const inlineRow = $('#playerInlineRecRow');
     if (inlineRow) inlineRow.innerHTML = '';
     $('#playerStage')?.classList.remove('has-inline-recs');
+    $('#playerLanguagePop')?.classList.add('hidden');
   }
 
   function applyFramePolicy() {
@@ -1559,6 +1836,9 @@
     const sourceRow = $('#sourceChips') && $('#sourceChips').closest('.pc-row');
     if (sourceRow) sourceRow.classList.remove('anime-hidden');
     $('#pcLang').closest('.pc-row').classList.remove('anime-hidden');
+    $('#playerAudioBtn').classList.remove('anime-hidden');
+    $('#playerLanguagePop').classList.add('hidden');
+    renderPlayerLanguageOptions();
     $('#playerNextSrc').classList.remove('anime-hidden');
     const details = $('#pcProviderGrid') && $('#pcProviderGrid').closest('details');
     if (details) {
@@ -1571,7 +1851,7 @@
   function restoreEpisodePanel() {
     $('#pcEpisodes').innerHTML = `
       <div class="pc-label">
-        <span>Episodes</span>
+        <span>${esc(t('episodes'))}</span>
         <select id="pcSeason" class="pc-select" aria-label="Season"></select>
       </div>
       <div class="ep-chips" id="epChips"></div>`;
@@ -1581,24 +1861,28 @@
   function playAnimeVideo(item) {
     if (!item || !item.url) return;
     const p = state.player;
+    if (item.kind !== 'trailer' || !item.embed) {
+      const tab = window.open(item.external || item.url, '_blank', 'noopener,noreferrer');
+      if (!tab) toast(t('officialPreview'));
+      return;
+    }
     const frame = $('#playerFrame');
-    const isTrailer = item.kind === 'trailer';
-    const url = item.embed || item.url;
     applyFramePolicy();
     $('.player-fallback')?.remove();
-    showPlayerLoading(item.label || (isTrailer ? 'Official trailer' : 'Official episode'));
+    showPlayerLoading(item.label || `${t('trailer')} · YouTube`);
     $('#playerExt').href = item.external || item.url || '#';
+    const session = p.session;
     frame.onload = () => {
-      setTimeout(() => { if (p.active) hidePlayerLoading(); }, isTrailer ? 900 : 1400);
+      setTimeout(() => { if (p.active && p.session === session) hidePlayerLoading(); }, 750);
     };
     frame.onerror = () => {
       hidePlayerLoading();
-      toast('This official video cannot be embedded here. Use Open source.');
+      toast(t('officialOptionsUnavailable'));
     };
     frame.src = 'about:blank';
     window.setTimeout(() => {
-      if (p.active) frame.src = url;
-    }, 30);
+      if (p.active && p.session === session) frame.src = item.embed;
+    }, 40);
     p.animeVideo.current = item;
   }
 
@@ -1607,12 +1891,14 @@
     const sourceRow = $('#sourceChips').closest('.pc-row');
     sourceRow.classList.add('anime-hidden');
     $('#pcLang').closest('.pc-row').classList.add('anime-hidden');
+    $('#playerAudioBtn').classList.add('anime-hidden');
+    $('#playerLanguagePop').classList.add('hidden');
     $('#playerNextSrc').classList.add('anime-hidden');
     $('#pcEpisodes').classList.remove('hidden');
     $('#pcEpisodes').innerHTML = `
       <div class="pc-label">
-        <span>Anime video</span>
-        <span class="pc-hint">Official preview / licensed link</span>
+        <span>${esc(t('animeVideo'))}</span>
+        <span class="pc-hint">${esc(t('officialPreview'))}</span>
       </div>
       <div class="ep-chips" id="epChips"></div>`;
 
@@ -1621,36 +1907,40 @@
       const trailerId = encodeURIComponent(data.trailer.id);
       const trailerUrl = data.trailer.url || `https://www.youtube.com/watch?v=${trailerId}`;
       items.push({
-        kind: 'trailer', label: 'Official trailer · YouTube', title: 'Official trailer',
+        kind: 'trailer', label: `${t('trailer')} · YouTube`, title: t('trailer'),
         url: trailerUrl, external: trailerUrl,
         embed: data.trailer.embed || `https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
       });
     }
     (data && data.episodes || []).forEach((ep, i) => items.push({
-      kind: 'episode', episodeNo: i + 1, label: `${ep.site || 'Official'} · ${ep.title || 'Episode'}`,
-      title: ep.title || 'Official episode', url: ep.url, external: ep.url, thumbnail: ep.thumbnail,
+      kind: 'episode', episodeNo: i + 1, label: `${ep.site || 'Official'} · ${ep.title || `Episode ${i + 1}`}`,
+      title: ep.title || `Episode ${i + 1}`, url: ep.url, external: ep.url, thumbnail: ep.thumbnail,
     }));
 
     const chips = $('#epChips');
-    if (items.length) {
-      items.forEach((item, i) => {
-        const b = document.createElement('button');
-        b.className = 'ep-chip anime-video-chip' + (i === 0 ? ' active' : '');
-        b.textContent = item.kind === 'trailer' ? 'Trailer' : `E${item.episodeNo || i + 1}`;
-        b.title = item.label;
-        b.onclick = () => {
+    items.forEach((item) => {
+      const button = document.createElement('button');
+      button.className = 'ep-chip anime-video-chip' + (item.kind === 'trailer' ? ' active' : '');
+      button.textContent = item.kind === 'trailer' ? t('trailer') : `E${item.episodeNo}`;
+      button.title = item.kind === 'trailer' ? item.label : `${item.label} · ${state.uiLang === 'hi' ? 'नई टैब में खुलेगा' : 'opens licensed site'}`;
+      button.onclick = () => {
+        if (item.kind === 'trailer') {
           $$('#epChips .ep-chip').forEach((x) => x.classList.remove('active'));
-          b.classList.add('active');
+          button.classList.add('active');
           playAnimeVideo(item);
-        };
-        chips.appendChild(b);
-      });
-      playAnimeVideo(items[0]);
-    } else {
-      chips.innerHTML = '<span class="pc-hint anime-empty">No embeddable preview was published for this title.</span>';
-      renderAnimeFallback(data && data.title || p.title, p.malId, data);
-    }
+        } else {
+          window.open(item.external, '_blank', 'noopener,noreferrer');
+        }
+      };
+      chips.appendChild(button);
+    });
 
+    const trailer = items.find((item) => item.kind === 'trailer');
+    if (trailer) playAnimeVideo(trailer);
+    else {
+      if (!items.length) chips.innerHTML = `<span class="pc-hint anime-empty">${esc(t('noAnimePreview'))}</span>`;
+      renderAnimeFallback(data && data.title || p.title, p.animeId, data, p.animeSource);
+    }
     renderOfficialAnimeLinks(data);
   }
 
@@ -1661,31 +1951,43 @@
     if (details) {
       details.open = true;
       const summary = details.querySelector('summary');
-      if (summary) summary.textContent = 'Official anime links';
+      if (summary) summary.textContent = t('officialAnimeLinks');
     }
-    const links = (data && data.official || []).filter((x) => x && x.url);
+    const providerLinks = (data && data.official || []).filter((x) => x && x.url);
+    const episodeLinks = (data && data.episodes || []).filter((x) => x && x.url).slice(0, 8).map((x, i) => ({
+      name: x.title || `Episode ${i + 1} · ${x.site || 'Official'}`, url: x.url,
+    }));
+    const seen = new Set();
+    const links = [...providerLinks, ...episodeLinks].filter((item) => {
+      if (seen.has(item.url)) return false;
+      seen.add(item.url); return true;
+    });
     if (!links.length) {
-      grid.innerHTML = '<div class="tiny-note" style="padding:6px 2px">No official link was returned. Try again in a moment.</div>';
+      grid.innerHTML = `<div class="tiny-note" style="padding:6px 2px">${esc(t('officialOptionsUnavailable'))}</div>`;
       return;
     }
     links.forEach((item) => {
       const a = document.createElement('a');
       a.className = 'provider-tile';
-      a.href = item.url; a.target = '_blank'; a.rel = 'noopener';
+      a.href = item.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
       a.innerHTML = `<div class="pt-fallback">${esc((item.name || 'O')[0])}</div><span class="pt-name">${esc(item.name || 'Official source')}</span><span class="pt-arrow">›</span>`;
       grid.appendChild(a);
     });
   }
 
+  const isAnimeItem = (it) => it && (it.kind === 'anime' || it.mal_id != null || it.anilist_id != null || it.media_type === 'anime');
+
   function playRecommendationItem(it) {
-    const isAnime = it.kind === 'anime' || it.mal_id != null;
+    const isAnime = isAnimeItem(it);
     const name = titleOf(it);
     const poster = isAnime
       ? (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url))
       : it.poster_path;
     if (isAnime) {
-      recordContinue({ id: it.mal_id, media_type: 'anime', title: name, vote_average: it.score, release_date: String(it.year || '') });
-      openPlayer({ title: name, media: 'anime', malId: it.mal_id, backdrop: poster || '' });
+      const ref = animeRef(it);
+      const item = { id: ref.id, media_type: 'anime', anime_source: ref.source, title: name, vote_average: it.score, release_date: String(it.year || ''), poster_path: poster || '' };
+      recordContinue(item, { animeSource: ref.source });
+      openPlayer({ title: name, media: 'anime', animeId: ref.id, animeSource: ref.source, backdrop: poster || '' });
     } else {
       const media = mediaOf(it);
       recordContinue({ id: it.id, media_type: media, title: name, vote_average: it.vote_average, release_date: it.release_date || it.first_air_date, poster_path: it.poster_path, backdrop_path: it.backdrop_path });
@@ -1694,10 +1996,16 @@
   }
 
   function recommendationPoster(it) {
-    const isAnime = it.kind === 'anime' || it.mal_id != null;
+    const isAnime = isAnimeItem(it);
     return isAnime
       ? (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url))
-      : it.poster_path;
+      : posterUrl(it.poster_path);
+  }
+
+  function recommendationThumb(it) {
+    const isAnime = isAnimeItem(it);
+    if (isAnime) return (it.images && it.images.jpg && (it.images.jpg.large_image_url || it.images.jpg.image_url)) || placeholderPoster();
+    return it.backdrop_path ? backdropUrl(it.backdrop_path) : posterUrl(it.poster_path);
   }
 
   function recommendationName(it) {
@@ -1716,12 +2024,12 @@
       return;
     }
     clean.forEach((it) => {
-      const isAnime = it.kind === 'anime' || it.mal_id != null;
+      const isAnime = isAnimeItem(it);
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'inline-rec-card';
       card.title = recommendationName(it);
-      card.innerHTML = `<img loading="lazy" src="${esc(recommendationPoster(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><span class="inline-rec-name">${esc(recommendationName(it))}</span><span class="inline-rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV' : 'Movie'}</span>`;
+      card.innerHTML = `<img loading="lazy" src="${esc(recommendationThumb(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><span class="inline-rec-name">${esc(recommendationName(it))}</span><span class="inline-rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV' : 'Movie'}</span>`;
       card.onclick = () => playRecommendationItem(it);
       row.appendChild(card);
     });
@@ -1739,7 +2047,7 @@
       return;
     }
     clean.forEach((it) => {
-      const isAnime = it.kind === 'anime' || it.mal_id != null;
+      const isAnime = isAnimeItem(it);
       const c = document.createElement('div');
       c.className = 'rec-card'; c.tabIndex = 0;
       c.innerHTML = `<img loading="lazy" src="${esc(recommendationPoster(it) || placeholderPoster())}" alt="${esc(recommendationName(it))}" onerror="this.onerror=null;this.src='${placeholderPoster()}'"><div class="rec-name">${esc(recommendationName(it))}</div><div class="rec-type">${isAnime ? 'Anime' : mediaOf(it) === 'tv' ? 'TV show' : 'Movie'}</div>`;
@@ -1752,7 +2060,7 @@
   }
 
   function fallbackRecommendations(p) {
-    return (state.heroItems || []).filter((it) => !(p.media === 'anime' && it.mal_id === p.malId)).slice(0, 10);
+    return (state.heroItems || []).filter((it) => !(p.media === 'anime' && isAnimeItem(it) && animeRef(it).id === Number(p.animeId))).slice(0, 10);
   }
 
   async function loadRecommendations(p) {
@@ -1784,36 +2092,41 @@
       if (p.session !== session || !p.active) return;
       const anime = animeResult.status === 'fulfilled' ? (animeResult.value.data || []).slice(0, 8).map((x) => ({ ...x, kind: 'anime' })) : [];
       const movies = movieResult.status === 'fulfilled' ? (movieResult.value.results || []).filter(isReleased).slice(0, 6) : [];
-      const recs = [...anime, ...movies].filter((x) => !(x.kind === 'anime' && x.mal_id === p.malId));
+      const recs = [...anime, ...movies].filter((x) => !(isAnimeItem(x) && animeRef(x).id === Number(p.animeId)));
       renderRecommendationCards(recs.length ? recs : fallbackRecommendations(p));
     } catch (e) {
       if (p.session === session && p.active) renderRecommendationCards(fallbackRecommendations(p));
     }
   }
 
-  function renderAnimeFallback(title, malId, data) {
+  function renderAnimeFallback(title, animeId, data, animeSource = 'mal') {
     hidePlayerLoading();
     const sourceRow = $('#sourceChips').closest('.pc-row');
     sourceRow.classList.add('anime-hidden');
     $('#pcLang').closest('.pc-row').classList.add('anime-hidden');
+    $('#playerAudioBtn').classList.add('anime-hidden');
+    $('#playerLanguagePop').classList.add('hidden');
     $('#playerNextSrc').classList.add('anime-hidden');
     const frame = $('#playerFrame'); frame.src = 'about:blank';
-    $('#playerTitle').textContent = title || 'Anime';
-    $('#pcEpisodes').classList.add('hidden');
+    $('#playerTitle').textContent = title || t('anime');
+    $('#pcEpisodes').classList.toggle('hidden', !(data && data.episodes && data.episodes.length));
     $$('.player-fallback').forEach((n) => n.remove());
     const wrap = document.createElement('div'); wrap.className = 'player-fallback';
     const defaultLinks = [
       { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${encodeURIComponent(title || 'anime')}` },
       { name: 'Netflix', url: `https://www.netflix.com/search?q=${encodeURIComponent(title || 'anime')}` },
     ];
-    const official = ((data && data.official && data.official.length) ? data.official : defaultLinks).filter((x) => x && x.url).slice(0, 3);
+    const official = ((data && data.official && data.official.length) ? data.official : defaultLinks).filter((x) => x && x.url).slice(0, 4);
+    const catalogueUrl = animeSource === 'anilist'
+      ? `https://anilist.co/anime/${encodeURIComponent(animeId)}`
+      : `https://myanimelist.net/anime/${encodeURIComponent(animeId)}`;
     wrap.innerHTML = `<div class="pf-logo">${PLAY_SM}</div>
-      <div class="pf-h">Official anime video not available</div>
-      <div class="pf-sub">This title has no embeddable preview right now. Use an official source below or try again later.</div>
+      <div class="pf-h">${esc(t('officialUnavailable'))}</div>
+      <div class="pf-sub">${esc(t('animeUnavailableHelp'))}</div>
       <div class="pf-btns">
         ${official.map((x) => `<a class="btn btn-more" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>`).join('')}
-        <a class="btn btn-ghost" href="https://www.youtube.com/results?search_query=${encodeURIComponent(title + ' official trailer')}" target="_blank" rel="noopener">YouTube</a>
-        ${malId ? `<a class="btn btn-ghost" href="https://myanimelist.net/anime/${encodeURIComponent(malId)}" target="_blank" rel="noopener">AniList / MAL</a>` : ''}
+        <a class="btn btn-ghost" href="https://www.youtube.com/results?search_query=${encodeURIComponent((title || 'anime') + ' official trailer')}" target="_blank" rel="noopener">YouTube</a>
+        ${animeId ? `<a class="btn btn-ghost" href="${catalogueUrl}" target="_blank" rel="noopener">${animeSource==='anilist'?'AniList':'MyAnimeList'}</a>` : ''}
       </div>`;
     $('#playerVideoWrap').appendChild(wrap);
     renderOfficialAnimeLinks({ official });
@@ -1822,6 +2135,7 @@
   function closePlayer() {
     const p = state.player;
     p.active = false;
+    p.loadToken++;
     clearTimeout(p._loadTimer);
     clearTimeout(p._muteTimer);
     const frame = $('#playerFrame');
@@ -1846,13 +2160,17 @@
     $('#unmuteBanner').classList.add('show');
   }
   $('#unmuteBtn').onclick = () => {
-    // try sending a click to iframe (may trigger unmute in some players)
     const frame = $('#playerFrame');
-    try { frame.contentWindow.focus(); } catch(e){}
+    // Some provider builds listen for one of these command shapes. They are
+    // harmless when ignored, and the native speaker control remains usable.
+    try {
+      frame.contentWindow.postMessage({ type: 'PLAYER_COMMAND', command: 'unmute' }, '*');
+      frame.contentWindow.postMessage({ type: 'UNMUTE' }, '*');
+      frame.contentWindow.postMessage({ action: 'unmute' }, '*');
+      frame.contentWindow.focus();
+    } catch(e) {}
     $('#unmuteBanner').classList.remove('show');
-    // Reload current source — a user-initiated reload usually starts unmuted
-    loadStream(true);
-    toast('Sound on 🔊');
+    toast(state.uiLang==='hi'?'आवाज़ बंद हो तो वीडियो के स्पीकर आइकन को दबाएँ।':'If sound is still muted, tap the speaker icon inside the video.');
   };
 
   // Language / audio selector
@@ -1860,12 +2178,23 @@
   $('#pcLang').onchange = (e) => {
     state.player.audioLang = e.target.value;
     localStorage.setItem('sv-audio-lang', e.target.value);
+    renderPlayerLanguageOptions();
     loadStream(true);
-    toast(e.target.value ? `Audio: ${e.target.value.toUpperCase()}` : 'Audio: default');
+    const selected = e.target.options[e.target.selectedIndex];
+    toast(e.target.value ? t('audioPreference', { language:selected?.textContent || e.target.value.toUpperCase() }) : t('audioDefault'));
   };
+  $('#playerAudioBtn').onclick = (e) => {
+    e.stopPropagation();
+    renderPlayerLanguageOptions();
+    $('#playerLanguagePop').classList.toggle('hidden');
+  };
+  $('#playerLanguageClose').onclick = () => $('#playerLanguagePop').classList.add('hidden');
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#playerLanguagePop') && !e.target.closest('#playerAudioBtn')) $('#playerLanguagePop').classList.add('hidden');
+  });
   $('#pcReload').onclick = () => {
     loadStream(true);
-    toast(state.player.media === 'anime' ? 'Reloading official video…' : 'Reloading…');
+    toast(state.player.media === 'anime' ? t('officialPreview') : t('reload'));
   };
   $('#playerFs').onclick=()=>{
     const el=document.querySelector('#playerModal .player');
@@ -1914,14 +2243,12 @@
     </a>`;
     menu.innerHTML = `
       <div class="dl-head">
-        <span>Open / Download</span>
+        <span>Open options</span>
         <button class="dl-x" aria-label="Close">×</button>
       </div>
-      ${opt('Source page', 'Best quality (1080p/4K) — use IDM or browser save', base)}
-      ${opt('Google search', 'Find direct downloads / torrents',
-        'https://www.google.com/search?q=' + encodeURIComponent(p.title + (p.media==='tv' ? ` S${p.season}E${p.episode}` : '') + ' download 1080p'))}
-      ${p.media==='tv' ? opt('IMDb / TMDB', 'View info & external links', 'https://www.themoviedb.org/tv/' + p.tmdbId) : opt('TMDB page', 'View info & external links', 'https://www.themoviedb.org/movie/' + p.tmdbId)}
-      <div class="dl-note">Embedded videos can't be saved directly. The source page opens in a new tab — use a video downloader (IDM, CocoCut, Video DownloadHelper) there.</div>
+      ${opt('Current source', 'Open the selected player in a new tab', base)}
+      ${p.media==='tv' ? opt('TMDB page', 'Title information and official links', 'https://www.themoviedb.org/tv/' + p.tmdbId) : opt('TMDB page', 'Title information and official links', 'https://www.themoviedb.org/movie/' + p.tmdbId)}
+      <div class="dl-note">StreamVerse does not host media files. Availability and quality are controlled by the selected provider.</div>
     `;
     document.body.appendChild(menu);
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1938,12 +2265,8 @@
     const list = orderedSources();
     if (state.player.source === AUTO_ID) {
       state.player.autoIdx = (state.player.autoIdx + 1) % list.length;
-      const s = list[state.player.autoIdx];
-      showPlayerLoading(`Switching to ${s.name}…`);
-      setFrameSource(buildEmbedUrl(s)).then((ok) => {
-        if (!ok && state.player.autoIdx < list.length - 1) $('#playerNextSrc').click();
-        else hidePlayerLoading();
-      });
+      const token = ++state.player.loadToken;
+      trySourceAtIndex(state.player.autoIdx, token);
     } else {
       // switch to next specific source
       const curIdx = list.findIndex((x) => x.id === state.player.source);
@@ -1952,15 +2275,22 @@
       localStorage.setItem('sv-source', next.id);
       renderSourceChips();
       loadStream(true);
-      toast(`Switched to ${next.name}`);
+      toast(`${t('source')}: ${next.name}`);
     }
   };
   $('#playerPlaylistAdd').onclick = () => {
     const p = state.player;
-    openPlaylistModal({ id:p.tmdbId, media:p.media, title:p.title, poster:'', backdrop:'', vote_average:0, release_date:'' });
+    const id = p.media === 'anime' ? p.animeId : p.tmdbId;
+    if (!id) return;
+    openPlaylistModal({ id, media:p.media, animeSource:p.media === 'anime' ? p.animeSource : null, title:p.title, poster:p.backdrop||'', backdrop:p.backdrop||'', vote_average:0, release_date:'' });
   };
 
   /* ================= LIVE TV ================= */
+  function liveCategoryLabel(category) {
+    if (state.uiLang !== 'hi') return category;
+    return ({ All:'सभी', News:'समाचार', Entertainment:'मनोरंजन', Movies:'फ़िल्में', Sports:'खेल', Kids:'बच्चे', Music:'संगीत', Education:'शिक्षा' })[category] || category;
+  }
+
   function showLiveTV() {
     hideAllViews(); $('#liveView').classList.remove('hidden'); window.scrollTo({top:0}); closeMobileMenu();
     renderLiveChannels();
@@ -1970,7 +2300,7 @@
     if (!chips.children.length) {
       const cats = ['All', ...Array.from(new Set(LIVE_CHANNELS.map(c=>c.cat)))];
       cats.forEach((cat) => {
-        const b = document.createElement('button'); b.className='cat-chip'+(cat==='All'?' active':''); b.textContent=cat;
+        const b = document.createElement('button'); b.className='cat-chip'+(cat==='All'?' active':''); b.textContent=liveCategoryLabel(cat);
         b.onclick = () => { $$('#liveChips .cat-chip').forEach(x=>x.classList.remove('active')); b.classList.add('active'); renderLiveChannels(cat); };
         chips.appendChild(b);
       });
@@ -1984,7 +2314,7 @@
         <div class="lc-logo">${ch.logo}</div>
         <div class="lc-meta">
           <div class="lc-name">${esc(ch.name)}</div>
-          <div class="lc-cat">${esc(ch.cat)} <span class="lc-live"><span class="live-dot sm"></span> LIVE</span></div>
+          <div class="lc-cat">${esc(liveCategoryLabel(ch.cat))} <span class="lc-live"><span class="live-dot sm"></span> ${state.uiLang==='hi'?'लाइव':'LIVE'}</span></div>
         </div>`;
       card.onclick = () => openLivePlayer(ch);
       card.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){e.preventDefault(); openLivePlayer(ch);} };
@@ -1992,75 +2322,193 @@
     });
   }
 
-  function openLivePlayer(channel) {
+  let hlsLoaderPromise = null;
+  function loadExternalScript(url) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = url; script.async = true; script.crossOrigin = 'anonymous';
+      script.onload = resolve; script.onerror = () => { script.remove(); reject(new Error('script load failed')); };
+      document.head.appendChild(script);
+    });
+  }
+  async function ensureHls() {
+    if (window.Hls) return window.Hls;
+    if (!hlsLoaderPromise) {
+      hlsLoaderPromise = (async () => {
+        const urls = [
+          'https://cdn.jsdelivr.net/npm/hls.js@1.5.18/dist/hls.min.js',
+          'https://unpkg.com/hls.js@1.5.18/dist/hls.min.js',
+        ];
+        let lastError;
+        for (const url of urls) {
+          try { await loadExternalScript(url); if (window.Hls) return window.Hls; }
+          catch (error) { lastError = error; }
+        }
+        throw lastError || new Error('HLS library unavailable');
+      })().catch((error) => { hlsLoaderPromise = null; throw error; });
+    }
+    return hlsLoaderPromise;
+  }
+
+  async function openLivePlayer(channel) {
     $('#livePlayerModal').classList.remove('hidden');
     document.body.style.overflow='hidden';
     $('#liveTitle').innerHTML = `<span class="live-dot"></span> ${esc(channel.name)} <span style="opacity:.6;font-weight:500">— ${esc(channel.cat)}</span>`;
     const video = $('#liveVideo');
     const loading = $('#liveLoading'); loading.classList.remove('hidden');
-    $('#liveMeta').textContent = 'Connecting…';
+    $('#liveMeta').textContent = t('connecting');
     destroyLive();
     state.live.currentChannel = channel;
     const proxyUrl = '/api/hls?url=' + encodeURIComponent(channel.url);
 
-    if (window.Hls && Hls.isSupported()) {
-      const hls = new Hls({ lowLatencyMode: true, backBufferLength: 30, enableWorker: true });
-      state.live.hls = hls;
-      hls.loadSource(proxyUrl);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    // Safari plays HLS natively; use the rewritten same-origin manifest so
+    // HTTP channels and relative segments work on an HTTPS Render deployment.
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = proxyUrl;
+      video.addEventListener('loadedmetadata', () => {
+        if (state.live.currentChannel !== channel) return;
         loading.classList.add('hidden');
-        $('#liveMeta').textContent = `Playing ${channel.name} · ${channel.cat}`;
-        populateQualityLevels(hls);
+        $('#liveMeta').textContent = `${channel.name} · ${channel.cat}`;
         video.play().catch(()=>{});
-      });
-      hls.on(Hls.Events.LEVEL_SWITCHED, () => populateQualityLevels(hls));
-      hls.on(Hls.Events.ERROR, (evt, data) => {
-        if (data && data.fatal) {
-          loading.classList.add('hidden');
-          $('#liveMeta').innerHTML = `Stream unavailable. <a href="${esc(channel.url)}" target="_blank" rel="noopener" style="color:#9ab5ff;text-decoration:underline">Try direct link</a>`;
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = channel.url; // Safari native
-      video.addEventListener('loadedmetadata', () => { loading.classList.add('hidden'); video.play().catch(()=>{}); }, { once: true });
-    } else {
-      loading.classList.add('hidden');
-      $('#liveMeta').textContent = 'HLS not supported in this browser.';
+      }, { once: true });
+      video.addEventListener('error', () => {
+        loading.classList.add('hidden'); $('#liveMeta').textContent = t('streamUnavailable');
+      }, { once: true });
+      return;
     }
+
+    let HlsClass;
+    try { HlsClass = await ensureHls(); }
+    catch (e) {
+      if (state.live.currentChannel !== channel) return;
+      loading.classList.add('hidden'); $('#liveMeta').textContent = t('hlsUnsupported'); return;
+    }
+    if (state.live.currentChannel !== channel) return;
+    if (!HlsClass || !HlsClass.isSupported()) {
+      loading.classList.add('hidden'); $('#liveMeta').textContent = t('hlsUnsupported'); return;
+    }
+
+    const hls = new HlsClass({
+      lowLatencyMode: false,
+      backBufferLength: 15,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      capLevelToPlayerSize: true,
+      startLevel: -1,
+      enableWorker: true,
+      manifestLoadingTimeOut: 15000,
+      fragLoadingTimeOut: 20000,
+    });
+    state.live.hls = hls;
+    let mediaRecoveryTried = false;
+    let networkRecoveryTried = false;
+    hls.loadSource(proxyUrl);
+    hls.attachMedia(video);
+    hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
+      if (state.live.currentChannel !== channel) return;
+      loading.classList.add('hidden');
+      $('#liveMeta').textContent = `${channel.name} · ${channel.cat}`;
+      populateQualityLevels(hls);
+      video.play().catch(()=>{});
+    });
+    hls.on(HlsClass.Events.LEVEL_SWITCHED, () => populateQualityLevels(hls));
+    hls.on(HlsClass.Events.ERROR, (event, data) => {
+      if (!data || !data.fatal || state.live.currentChannel !== channel) return;
+      if (data.type === HlsClass.ErrorTypes.NETWORK_ERROR && !networkRecoveryTried) {
+        networkRecoveryTried = true;
+        window.setTimeout(() => hls.startLoad(), 900);
+        return;
+      }
+      if (data.type === HlsClass.ErrorTypes.MEDIA_ERROR && !mediaRecoveryTried) {
+        mediaRecoveryTried = true;
+        hls.recoverMediaError();
+        return;
+      }
+      loading.classList.add('hidden');
+      $('#liveMeta').textContent = t('streamUnavailable');
+      try { hls.destroy(); } catch(e) {}
+      if (state.live.hls === hls) state.live.hls = null;
+    });
   }
   function populateQualityLevels(hls) {
-    const sel = $('#liveQuality');
+    const select = $('#liveQuality');
     const levels = hls.levels || [];
-    sel.innerHTML = '<option value="-1">Auto</option>' + levels.map((lvl, i) => {
-      const res = lvl.height ? lvl.height + 'p' : `${Math.round(lvl.bitrate/1000)} kbps`;
-      return `<option value="${i}">${res}</option>`;
+    select.innerHTML = `<option value="-1">${state.uiLang==='hi'?'ऑटो':'Auto'}</option>` + levels.map((level, index) => {
+      const resolution = level.height ? level.height + 'p' : `${Math.round(level.bitrate/1000)} kbps`;
+      return `<option value="${index}">${resolution}</option>`;
     }).join('');
-    sel.value = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
-    sel.onchange = () => { hls.currentLevel = parseInt(sel.value,10); };
+    select.value = hls.autoLevelEnabled ? '-1' : String(hls.currentLevel);
+    select.onchange = () => { hls.currentLevel = parseInt(select.value,10); };
   }
   function destroyLive() {
     if (state.live.hls) { try { state.live.hls.destroy(); } catch(e){} state.live.hls = null; }
-    const v = $('#liveVideo'); if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch(e){} }
+    state.live.currentChannel = null;
+    const video = $('#liveVideo');
+    if (video) { try { video.pause(); video.removeAttribute('src'); video.load(); } catch(e){} }
   }
-  $('#liveClose').onclick = () => { destroyLive(); $('#livePlayerModal').classList.add('hidden'); if ($('#detailModal').classList.contains('hidden')&&$('#playerModal').classList.contains('hidden')) document.body.style.overflow=''; };
+
+  function setLiveAudioEnhancement(enabled) {
+    const live = state.live;
+    const video = $('#liveVideo');
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Web Audio unavailable');
+      if (!live.audioContext) live.audioContext = new AudioContextClass();
+      if (!live.audioSource) {
+        live.audioSource = live.audioContext.createMediaElementSource(video);
+        live.compressor = live.audioContext.createDynamicsCompressor();
+        live.gain = live.audioContext.createGain();
+        live.audioSource.connect(live.compressor).connect(live.gain).connect(live.audioContext.destination);
+      }
+      live.enhanced = Boolean(enabled);
+      if (live.enhanced) {
+        live.compressor.threshold.value = -28;
+        live.compressor.knee.value = 18;
+        live.compressor.ratio.value = 3.2;
+        live.compressor.attack.value = 0.008;
+        live.compressor.release.value = 0.22;
+        live.gain.gain.value = 1.08;
+      } else {
+        live.compressor.threshold.value = 0;
+        live.compressor.knee.value = 0;
+        live.compressor.ratio.value = 1;
+        live.gain.gain.value = 1;
+      }
+      live.audioContext.resume().catch(()=>{});
+      const button = $('#liveAudioEnhance');
+      button.classList.toggle('active', live.enhanced);
+      button.setAttribute('aria-pressed', live.enhanced ? 'true' : 'false');
+      button.textContent = live.enhanced
+        ? (state.uiLang==='hi'?'साफ़ ऑडियो ✓':'Clear audio ✓')
+        : t('clearAudio');
+      toast(live.enhanced ? t('audioEnhanced') : t('audioNormal'));
+    } catch (e) {
+      toast(state.uiLang==='hi'?'इस ब्राउज़र में ऑडियो सुधार उपलब्ध नहीं है।':'Audio enhancement is unavailable in this browser.');
+    }
+  }
+
+  $('#liveClose').onclick = () => {
+    destroyLive(); $('#livePlayerModal').classList.add('hidden');
+    if ($('#detailModal').classList.contains('hidden')&&$('#playerModal').classList.contains('hidden')) document.body.style.overflow='';
+  };
   $('#liveFs').onclick = () => {
-    const v = $('#liveVideo');
-    if (!document.fullscreenElement) { (v.requestFullscreen||v.webkitRequestFullscreen||v.mozRequestFullScreen).call(v); }
-    else (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+    const video = $('#liveVideo');
+    if (!document.fullscreenElement) { const request=video.requestFullscreen||video.webkitRequestFullscreen||video.mozRequestFullScreen; if(request) request.call(video); }
+    else { const exit=document.exitFullscreen||document.webkitExitFullscreen; if(exit) exit.call(document); }
   };
-  $('#liveSpeed').onchange = (e) => { const v=$('#liveVideo'); v.playbackRate = parseFloat(e.target.value); toast(`Speed ${e.target.value}×`); };
+  $('#liveSpeed').onchange = (e) => { $('#liveVideo').playbackRate = parseFloat(e.target.value); toast(`${t('speed')} ${e.target.value}×`); };
   $('#liveMute').onclick = () => {
-    const v=$('#liveVideo'); v.muted = !v.muted;
-    $('#liveMuteText').textContent = v.muted ? 'Unmute' : 'Mute';
-    toast(v.muted ? 'Muted' : 'Unmuted');
+    const video=$('#liveVideo'); video.muted = !video.muted;
+    $('#liveMuteText').textContent = video.muted ? t('unmute') : t('mute');
+    toast(video.muted ? t('mute') : t('unmute'));
   };
+  $('#liveAudioEnhance').onclick = () => setLiveAudioEnhancement(!state.live.enhanced);
   $('#livePip').onclick = async () => {
-    const v=$('#liveVideo');
+    const video=$('#liveVideo');
     try {
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
-      else if (document.pictureInPictureEnabled) await v.requestPictureInPicture();
-    } catch(e) { toast('PiP not available'); }
+      else if (document.pictureInPictureEnabled && video.requestPictureInPicture) await video.requestPictureInPicture();
+    } catch(e) { toast('PiP unavailable'); }
   };
 
   /* ================= MODAL PLUMBING ================= */
@@ -2068,7 +2516,7 @@
   $('#modalClose').onclick=closeModal;
   $('#detailModal').addEventListener('click',(e)=>{ if(e.target===$('#detailModal')) closeModal(); });
   function closeModal() { $('#detailModal').classList.add('hidden'); if ($('#playerModal').classList.contains('hidden')&&$('#livePlayerModal').classList.contains('hidden')) document.body.style.overflow=''; }
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closePlayer(); destroyLive(); $('#livePlayerModal').classList.add('hidden'); closeModal(); $('#settingsModal').classList.add('hidden'); $('#playlistModal').classList.add('hidden'); closeBravePromo(false); } });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closePlayer(); destroyLive(); $('#livePlayerModal').classList.add('hidden'); closeModal(); closeSettings(); $('#playlistModal').classList.add('hidden'); closeBravePromo(false); } });
 
   function trapFocus(container) {
     const focusables = container.querySelectorAll('button,[href],input,select,[tabindex]:not([tabindex="-1"])');
@@ -2093,76 +2541,156 @@
   }).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class']});
 
   /* ================= SETTINGS ================= */
+  function closeSettings() {
+    $('#settingsModal').classList.add('hidden');
+    if ($('#playerModal').classList.contains('hidden') && $('#detailModal').classList.contains('hidden') && $('#livePlayerModal').classList.contains('hidden')) {
+      document.body.style.overflow='';
+    }
+  }
+  function refreshLocalizedContent() {
+    applyUiLanguage();
+    if (!$('#content').classList.contains('hidden')) loadHome();
+    else if (!$('#mylistView').classList.contains('hidden')) renderMyList();
+    else if (!$('#playlistsView').classList.contains('hidden')) renderPlaylists();
+    else if (!$('#liveView').classList.contains('hidden')) { $('#liveChips').innerHTML=''; renderLiveChannels(); }
+    if (state.player.active && state.player.media !== 'anime') {
+      renderSourceChips();
+      if (state.player.details) populateAudioLanguages(state.player.details);
+    }
+  }
+  function refreshContentLocale() {
+    if (!$('#content').classList.contains('hidden')) return;
+    const route = (location.hash.replace('#','') || '').toLowerCase();
+    if (['movies','tv','anime'].includes(route)) showResultsForNav(route);
+    else if (route === 'drama') showDrama();
+  }
+
   $('#settingsBtn').onclick=openSettings;
-  $('#settingsClose').onclick=()=>$('#settingsModal').classList.add('hidden');
-  $('#settingsModal').addEventListener('click',(e)=>{ if(e.target===$('#settingsModal')) $('#settingsModal').classList.add('hidden'); });
+  $('#settingsClose').onclick=closeSettings;
+  $('#settingsModal').addEventListener('click',(e)=>{ if(e.target===$('#settingsModal')) closeSettings(); });
   async function openSettings() {
-    const m=$('#settingsModal'); m.classList.remove('hidden');
-    const ls=$('#setLang');
-    ls.innerHTML=LANGS.map(([c,l])=>`<option value="${c}" ${c===state.lang?'selected':''}>${esc(l)}</option>`).join('');
-    ls.onchange=()=>{ state.lang=ls.value; localStorage.setItem('sv-lang',state.lang); apiCache.clear(); toast('Language updated'); if(!$('#content').classList.contains('hidden')) loadHome(); };
+    const modal=$('#settingsModal'); modal.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+    applyUiLanguage();
+
+    const uiSelect=$('#setUiLang');
+    uiSelect.innerHTML=UI_LANGS.map(([code,label])=>`<option value="${code}" ${code===state.uiLang?'selected':''}>${esc(label)}</option>`).join('');
+    uiSelect.onchange=()=>{
+      state.uiLang=uiSelect.value === 'hi' ? 'hi' : 'en';
+      localStorage.setItem('sv-ui-lang',state.uiLang);
+      refreshLocalizedContent();
+      toast(state.uiLang === 'hi' ? t('interfaceUpdated') : 'Interface changed to English');
+      openSettings();
+    };
+
+    const languageSelect=$('#setLang');
+    languageSelect.innerHTML=LANGS.map(([code,label])=>`<option value="${code}" ${code===state.lang?'selected':''}>${esc(label)}</option>`).join('');
+    languageSelect.onchange=()=>{
+      state.lang=languageSelect.value;
+      localStorage.setItem('sv-lang',state.lang);
+      const preferred = String(state.lang).slice(0,2).toLowerCase();
+      if (AUDIO_NAMES[preferred]) {
+        state.player.audioLang=preferred;
+        localStorage.setItem('sv-audio-lang',preferred);
+      }
+      // Selecting Hindi content also enables the Hindi interface. Users can
+      // still change the interface independently with the control above.
+      if (state.lang.startsWith('hi')) {
+        state.uiLang='hi'; localStorage.setItem('sv-ui-lang','hi');
+      }
+      apiCache.clear();
+      refreshLocalizedContent();
+      refreshContentLocale();
+      toast(t('languageUpdated'));
+      openSettings();
+    };
+
     await ensureCountries();
-    const cs=$('#setCountry');
-    cs.innerHTML='<option value="">Auto-detect</option>'+state.countries.map(c=>`<option value="${c.code}" ${c.code===state.country?'selected':''}>${esc(c.name)}</option>`).join('');
-    cs.onchange=()=>{ state.country=cs.value; localStorage.setItem('sv-country',state.country); toast('Region updated'); };
+    const countrySelect=$('#setCountry');
+    countrySelect.innerHTML=`<option value="">${esc(t('autoDetect'))}</option>`+state.countries.map(c=>`<option value="${c.code}" ${c.code===state.country?'selected':''}>${esc(c.name)}</option>`).join('');
+    countrySelect.onchange=()=>{
+      state.country=countrySelect.value; localStorage.setItem('sv-country',state.country); toast(t('regionUpdated'));
+    };
     $('#setGeoBtn').onclick = async () => {
       try {
-        const g = await api('/geo', { noCache: true });
-        state.country = g.country_code || 'IN';
+        const geo = await api('/geo', { noCache: true });
+        state.country = geo.country_code || 'IN';
         localStorage.setItem('sv-country', state.country);
-        toast(`Region detected: ${g.country || state.country}`);
+        toast(t('regionDetected',{ region:geo.country || state.country }));
         openSettings();
-      } catch (e) { toast('Could not detect region'); }
+      } catch (e) { toast(t('regionFailed')); }
     };
-    const ss = $('#setSource');
-    ss.innerHTML = `<option value="${AUTO_ID}">⚡ Auto (best)</option>` +
-      orderedSources().map(s=>`<option value="${s.id}" ${s.id===state.player.source?'selected':''}>${esc(s.name)}</option>`).join('');
-    ss.onchange = () => { state.player.source = ss.value; localStorage.setItem('sv-source',ss.value); toast(ss.value===AUTO_ID?'Auto source selection enabled':'Default source updated'); };
-    $('#setThemeBtn').textContent=document.body.classList.contains('light')?'Light theme — switch to Dark':'Dark theme — switch to Light';
+
+    const sourceSelect = $('#setSource');
+    sourceSelect.innerHTML = `<option value="${AUTO_ID}" ${state.player.source===AUTO_ID?'selected':''}>⚡ ${esc(t('autoBest'))}</option>` +
+      orderedSources().map(source=>`<option value="${source.id}" ${source.id===state.player.source?'selected':''}>${esc(source.name)}</option>`).join('');
+    sourceSelect.onchange = () => {
+      state.player.source = sourceSelect.value;
+      localStorage.setItem('sv-source',sourceSelect.value);
+      toast(sourceSelect.value===AUTO_ID ? t('autoBest') : `${t('source')}: ${getSource(sourceSelect.value).name}`);
+    };
+
+    $('#setThemeBtn').textContent=document.body.classList.contains('light')?t('lightToDark'):t('darkToLight');
     $('#setThemeBtn').onclick=()=>{ toggleTheme(); openSettings(); };
+
     detectBrave().then((brave) => {
       const status = $('#setBraveStatus');
-      const btn = $('#setBraveBtn');
+      const button = $('#setBraveBtn');
       if (brave) {
-        status.textContent = 'You are using Brave — built-in ad and tracker blocking is active.';
-        btn.textContent = 'Brave is active';
-        btn.classList.remove('btn-play'); btn.classList.add('btn-ghost');
-        btn.onclick = () => toast('You are using Brave — best experience is active.');
+        status.textContent = state.uiLang === 'hi' ? 'Brave की विज्ञापन और ट्रैकर सुरक्षा चालू है।' : 'You are using Brave — built-in ad and tracker blocking is active.';
+        button.textContent = state.uiLang === 'hi' ? 'Brave चालू है' : 'Brave is active';
+        button.classList.remove('btn-play'); button.classList.add('btn-ghost');
+        button.onclick = () => toast(status.textContent);
       } else {
-        status.textContent = 'Use Brave or a trusted ad blocker for faster, cleaner playback on normal browsers too.';
-        btn.textContent = devicePlatform() === 'android' ? 'Get Brave on Play Store' : devicePlatform() === 'ios' ? 'Get Brave on App Store' : 'Download Brave';
-        btn.classList.remove('btn-ghost'); btn.classList.add('btn-play');
-        btn.onclick = openBraveDownload;
+        status.textContent = state.uiLang === 'hi' ? 'बेहतर प्लेबैक के लिए Brave या भरोसेमंद ऐड-ब्लॉकर उपयोग करें।' : 'Use Brave or a trusted ad blocker for faster, cleaner playback.';
+        button.textContent = devicePlatform() === 'android' ? 'Get Brave on Play Store' : devicePlatform() === 'ios' ? 'Get Brave on App Store' : 'Download Brave';
+        button.classList.remove('btn-ghost'); button.classList.add('btn-play');
+        button.onclick = openBraveDownload;
       }
       $('#setBravePromoBtn').onclick = () => openBravePromo({ force: true });
     }).catch(() => {});
-    const sb = $('#setSandboxBtn');
-    sb.textContent = state.sandbox ? 'On (blocks popups)' : 'Off (best playback)';
-    sb.onclick = () => {
+
+    const sandboxButton = $('#setSandboxBtn');
+    sandboxButton.textContent = state.sandbox
+      ? (state.uiLang==='hi'?'चालू (पॉपअप ब्लॉक)':'On (blocks popups)')
+      : (state.uiLang==='hi'?'बंद (बेहतर प्लेबैक)':'Off (best playback)');
+    sandboxButton.onclick = () => {
       state.sandbox = !state.sandbox;
       localStorage.setItem('sv-sandbox', state.sandbox ? '1' : '0');
+      toast(state.sandbox
+        ? (state.uiLang==='hi'?'पॉपअप सुरक्षा चालू — कुछ सर्वर लोड नहीं हो सकते।':'Popup protection on — a few sources may refuse to load.')
+        : (state.uiLang==='hi'?'पॉपअप सुरक्षा बंद — बेहतर प्लेबैक।':'Popup protection off — best playback.'));
       openSettings();
-      toast(state.sandbox ? 'Popup protection ON — some sources may refuse to load.' : 'Popup protection OFF — best playback.');
     };
+
+    const dateLocale = state.uiLang === 'hi' ? 'hi-IN' : undefined;
     $('#usageBox').innerHTML=`<div class="stat-grid">
-      <div class="stat"><b>${fmtMB(usage.bytes)}</b><span>Data used</span></div>
-      <div class="stat"><b>${usage.reqs}</b><span>Requests</span></div>
-      <div class="stat"><b>${new Date(usage.since).toLocaleDateString()}</b><span>Since</span></div>
-      <div class="stat"><b>${state.watchlist.length}</b><span>Saved titles</span></div>
+      <div class="stat"><b>${fmtMB(usage.bytes)}</b><span>${esc(t('dataUsed'))}</span></div>
+      <div class="stat"><b>${usage.reqs}</b><span>${esc(t('requests'))}</span></div>
+      <div class="stat"><b>${new Date(usage.since).toLocaleDateString(dateLocale)}</b><span>${esc(t('since'))}</span></div>
+      <div class="stat"><b>${state.watchlist.length}</b><span>${esc(t('savedTitles'))}</span></div>
     </div>`;
-    $('#usageReset').onclick=()=>{ usage={bytes:0,reqs:0,since:Date.now()}; saveUsage(); toast('Stats reset'); openSettings(); };
-    $('#cacheClear').onclick=async()=>{ try{ const r=await api('/cache/clear',{noCache:true}); apiCache.clear(); toast(`Cache cleared (${r.cleared})`); openSettings(); }catch(e){ toast('Cache clear failed'); } };
-    $('#backupInfo').innerHTML='<div class="section-label">Server status</div>';
-    api('/stats',{noCache:true}).then((s)=>{
-      const dot=(v)=>v==='ok'?'Online':v==='error'?'Offline':'Idle';
+    $('#usageReset').onclick=()=>{
+      usage={bytes:0,reqs:0,since:Date.now()}; saveUsage(); toast(t('resetStats')); openSettings();
+    };
+    $('#cacheClear').onclick=()=>{
+      apiCache.clear();
+      if ('caches' in window) caches.keys().then((keys)=>Promise.all(keys.map((key)=>caches.delete(key)))).catch(()=>{});
+      toast(t('browserCacheCleared'));
+      openSettings();
+    };
+
+    $('#backupInfo').innerHTML=`<div class="section-label">${esc(t('serverStatus'))}</div>`;
+    api('/stats',{noCache:true}).then((serverStats)=>{
+      const statusText=(value)=>value==='ok'?t('online'):value==='error'||value==='bad-key'?t('offline'):t('idle');
       $('#backupInfo').innerHTML=`<div class="api-chips">
-        <span class="chip">TMDB: ${dot(s.api_health.tmdb)}</span>
-        <span class="chip">Jikan: ${dot(s.api_health.jikan)}</span>
-        <span class="chip">Cinemeta: ${dot(s.api_health.cinemeta)}</span>
-        <span class="chip">AniList: ${dot(s.api_health.anilist)}</span>
+        <span class="chip">TMDB: ${esc(serverStats.tmdb_configured ? statusText(serverStats.api_health.tmdb) : t('unavailable'))}</span>
+        <span class="chip">Jikan: ${esc(statusText(serverStats.api_health.jikan))}</span>
+        <span class="chip">Cinemeta: ${esc(statusText(serverStats.api_health.cinemeta))}</span>
+        <span class="chip">AniList: ${esc(statusText(serverStats.api_health.anilist))}</span>
       </div>
-      <div class="tiny-note">Version ${s.version||'?'} · uptime ${Math.floor((s.uptime_s||0)/60)} min · ${s.cache_items||0} cached items</div>`;
-    }).catch(()=>{ $('#backupInfo').innerHTML='<div class="tiny-note">Status unavailable.</div>'; });
+      <div class="tiny-note">v${esc(serverStats.version||'?')} · ${Math.floor((serverStats.uptime_s||0)/60)} min · ${serverStats.cache_items||0} cached</div>`;
+    }).catch(()=>{ $('#backupInfo').innerHTML=`<div class="tiny-note">${esc(t('unavailable'))}</div>`; });
   }
   async function ensureCountries() {
     if (state.countries.length) return;
@@ -2186,6 +2714,31 @@
   })();
   $('#themeBtn').onclick=toggleTheme;
 
+  function enhanceHorizontalRows() {
+    $$('.row-section').forEach((section) => {
+      const head = section.querySelector('.row-head');
+      const row = section.querySelector('.card-row');
+      if (!head || !row || head.querySelector('.row-scroll-controls')) return;
+      const controls = document.createElement('div');
+      controls.className = 'row-scroll-controls';
+      const previous = document.createElement('button');
+      const next = document.createElement('button');
+      previous.type = next.type = 'button';
+      previous.innerHTML = '‹'; next.innerHTML = '›';
+      previous.setAttribute('aria-label', t('prev')); next.setAttribute('aria-label', t('next'));
+      previous.onclick = () => row.scrollBy({ left: -Math.max(280, row.clientWidth * .82), behavior: 'smooth' });
+      next.onclick = () => row.scrollBy({ left: Math.max(280, row.clientWidth * .82), behavior: 'smooth' });
+      controls.append(previous, next); head.appendChild(controls);
+      const update = () => {
+        previous.disabled = row.scrollLeft < 8;
+        next.disabled = row.scrollLeft + row.clientWidth >= row.scrollWidth - 8;
+      };
+      row.addEventListener('scroll', update, { passive: true });
+      if ('ResizeObserver' in window) new ResizeObserver(update).observe(row);
+      update();
+    });
+  }
+
   /* ================= SCROLL / TOP ================= */
   window.addEventListener('scroll',()=>{
     $('#navbar').classList.toggle('scrolled', window.scrollY>30);
@@ -2203,23 +2756,13 @@
       }
     }, { passive: true });
   }
-  $('#inlineRecOpen').onclick = () => {
+  const scrollToRecommendations = () => {
     const target = $('#playerControls');
     if (playerFeed && target) playerFeed.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
   };
-  const swipeZone = $('#playerSwipeZone');
-  let swipeStartY = 0;
-  if (swipeZone) {
-    swipeZone.addEventListener('touchstart', (e) => { swipeStartY = e.changedTouches[0]?.clientY || 0; }, { passive: true });
-    swipeZone.addEventListener('touchend', (e) => {
-      const endY = e.changedTouches[0]?.clientY || swipeStartY;
-      const delta = endY - swipeStartY;
-      const target = $('#playerControls');
-      if (!playerFeed || !target) return;
-      if (delta < -28) playerFeed.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
-      else if (delta > 28) playerFeed.scrollTo({ top: 0, behavior: 'smooth' });
-    }, { passive: true });
-  }
+  $('#feedSwipeHint').onclick = scrollToRecommendations;
+  $('#feedSwipeHint').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToRecommendations(); } };
+  $('#inlineRecOpen').onclick = scrollToRecommendations;
 
   /* keyboard shortcuts */
   document.addEventListener('keydown',(e)=>{
@@ -2231,11 +2774,8 @@
   const css=document.createElement('style'); css.textContent='@keyframes spin{to{transform:rotate(360deg)}}'; document.head.appendChild(css);
 
   /* ================= Online-users presence =================
-     Heartbeat to /api/ping every 20s; updates footer counter.
-     When server is unreachable (file:// preview) it estimates
-     an audience from a stable random base so the number still moves. */
+     Lightweight heartbeat every 30s; no fake audience is shown offline. */
   let presenceToken = sessionStorage.getItem('sv-ptoken') || '';
-  let onlineFallback = 120 + Math.floor(Math.random()*200);
   async function pingPresence() {
     try {
       const r = await fetch('/api/ping?t=' + encodeURIComponent(presenceToken), { cache: 'no-store' });
@@ -2244,22 +2784,21 @@
       if (d.token) { presenceToken = d.token; sessionStorage.setItem('sv-ptoken', d.token); }
       setOnlineCount(d.online);
     } catch (e) {
-      // gentle random walk for file:// / offline preview
-      onlineFallback = Math.max(18, onlineFallback + Math.round((Math.random()-0.48)*12));
-      setOnlineCount(onlineFallback);
+      setOnlineCount(null);
     }
   }
   function setOnlineCount(n) {
     const el = $('#onlineCount'); if (!el) return;
+    if (!Number.isFinite(Number(n))) { el.textContent = '—'; return; }
     const cur = parseInt(el.textContent || '0', 10) || 0;
-    if (cur === n) return;
-    el.textContent = n.toLocaleString();
+    if (cur === Number(n)) return;
+    el.textContent = Number(n).toLocaleString();
     el.animate(
       [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
       { duration: 350, easing: 'ease-out' });
   }
   pingPresence();
-  setInterval(pingPresence, 20000);
+  setInterval(() => { if (!document.hidden) pingPresence(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pingPresence(); });
 
   /* ================= Back / home navigation =================
@@ -2274,16 +2813,14 @@
     $('#settingsModal').classList.add('hidden');
     $('#playlistModal').classList.add('hidden');
     if (document.body.style.overflow) document.body.style.overflow = '';
-    location.hash = 'home';
-    setNav('home');
-    showHome();
+    navigate('home');
   }
   document.addEventListener('click', (e) => {
     const brand = e.target.closest('.brand, .footer-brand');
     if (brand) { e.preventDefault(); goHome(); }
   });
-  // Browser back button — close overlays instead of leaving the site
-  history.replaceState({ sv: 1 }, '', location.href);
+  // If browser navigation happens while an overlay is open, clean up media
+  // without inserting duplicate history entries.
   window.addEventListener('popstate', () => {
     const anyOpen = !$('#playerModal').classList.contains('hidden')
       || !$('#livePlayerModal').classList.contains('hidden')
@@ -2291,17 +2828,13 @@
       || !$('#settingsModal').classList.contains('hidden')
       || !$('#playlistModal').classList.contains('hidden')
       || !$('#bravePromo').classList.contains('hidden');
-    if (anyOpen) {
-      closePlayer();
-      try { destroyLive(); $('#livePlayerModal').classList.add('hidden'); } catch(e){}
-      closeModal();
-      $('#settingsModal').classList.add('hidden');
-      $('#playlistModal').classList.add('hidden');
-      if (document.body.style.overflow) document.body.style.overflow = '';
-      history.pushState({ sv: 1 }, '', location.href);
-    }
+    if (!anyOpen) return;
+    closePlayer();
+    try { destroyLive(); $('#livePlayerModal').classList.add('hidden'); } catch(e){}
+    closeModal(); closeSettings();
+    $('#playlistModal').classList.add('hidden');
+    closeBravePromo(false);
   });
-  history.pushState({ sv: 1 }, '', location.href);
 
   /* ================= Brave / ad-block recommendation ========== */
   const BRAVE_LINKS = {
@@ -2390,8 +2923,8 @@
   $('#braveConfirmBtn').onclick = () => closeBravePromo(false);
   $('#bravePromo').addEventListener('click', (e) => { if (e.target === $('#bravePromo')) closeBravePromo(false); });
 
-  // Show the recommendation once, with a real choice instead of an auto-disappearing banner.
-  setTimeout(() => { openBravePromo().catch(() => {}); }, 900);
+  // The recommendation stays available in Settings; do not interrupt a new
+  // visitor with a full-screen promo while the catalogue is loading.
 
   /* ================= Environment check =================
      Embedded preview/file mode cannot reliably run cross-origin players.
@@ -2420,21 +2953,23 @@
     });
   })();
 
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js?v=10.0.0').catch(() => {});
+    }, { once: true });
+  }
+
   /* ================= Init ================= */
   (async function init(){
-    setNav(); loadHome(); ensureCountries();
+    applyUiLanguage(); enhanceHorizontalRows();
+    renderRoute(location.hash.replace('#','') || 'home');
+    ensureCountries();
     if (!state.country) {
       try { const g=await api('/geo',{noCache:true}); state.country=g.country_code||'IN'; localStorage.setItem('sv-country',state.country); }
       catch(e) { state.country='IN'; }
     }
     window.addEventListener('hashchange',()=>{
-      const h=location.hash.replace('#','')||'home'; setNav(h);
-      if(h==='home') showHome();
-      else if(h==='mylist') showMyList();
-      else if(h==='playlists') showPlaylists();
-      else if(h==='live') showLiveTV();
-      else if(h==='drama') showDrama();
-      else if(['movies','tv','anime'].includes(h)) showResultsForNav(h);
+      renderRoute(location.hash.replace('#','')||'home');
     });
   })();
 })();

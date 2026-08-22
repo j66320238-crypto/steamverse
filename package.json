@@ -1,13 +1,16 @@
 {
   "name": "streamverse",
-  "version": "9.3.0",
-  "description": "StreamVerse — Movies, TV & Anime discovery site (TMDB + AniList anime with Cinemeta + Jikan backups)",
+  "version": "10.0.0",
+  "description": "StreamVerse — optimized movies, TV and anime discovery app for Render",
   "private": true,
+  "license": "UNLICENSED",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js && node --check app.js",
+    "test": "node --test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.18"
   }
 }
