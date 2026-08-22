@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v11.1 — client
+   StreamVerse v12.3 — client
    • Same-origin Node/Render API keeps credentials and quota off the browser
    • Multiple fallback embed sources with season/episode picker
    • Playlists (multiple, named) — Netflix-style
@@ -10,6 +10,21 @@
    ============================================================ */
 (() => {
   'use strict';
+
+  // Single source of truth for cache busting. Must match the ?v= query strings
+  // in index.html and the VERSION/SHELL constants in sw.js.
+  const APP_VERSION = '12.4.0';
+
+  // Earlier builds could leave "hide recommendations" stuck on after a bug,
+  // and users had no obvious way to tell it apart from recommendations simply
+  // not loading. Clear the flag once per new version; the Settings toggle
+  // still works and its choice sticks until the next upgrade.
+  try {
+    if (localStorage.getItem('sv-recs-reset') !== APP_VERSION) {
+      localStorage.setItem('sv-recs-reset', APP_VERSION);
+      if (localStorage.getItem('sv-hide-recs') === '1') localStorage.setItem('sv-hide-recs', '0');
+    }
+  } catch (e) { /* private mode: nothing to reset */ }
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -50,6 +65,7 @@
   const UI_LANGS = [['en', 'English'], ['hi', 'हिन्दी']];
   const I18N = {
     en: {
+      qualitySingle: 'Source provides one quality only', qualityReal: 'Direct stream — quality really switches',
     skipIntro: 'Skip intro',
     subtitles: 'Subtitles',
     subtitlesOff: 'Off',
@@ -117,6 +133,7 @@
       audioPreference: 'Preferred audio: {language}. Confirm the track inside the provider player.',
     },
     hi: {
+      qualitySingle: 'यह स्रोत केवल एक ही क्वालिटी देता है', qualityReal: 'सीधी स्ट्रीम — क्वालिटी असल में बदलती है',
     skipIntro: 'इंट्रो स्किप करें',
     subtitles: 'सबटाइटल',
     subtitlesOff: 'बंद',
@@ -419,7 +436,7 @@
         animeEpisode: 1, animeEpisodeCount: 0, animeDub: localStorage.getItem('sv-anime-dub') === '1',
         animeSourceId: AUTO_ID, animeAutoIdx: 0, animeDirect: false,
         // Native HLS playback state
-        nativeActive: false, nativeLevels: [], nativeSkip: null,
+        nativeActive: false, nativeLevels: [], nativeSkip: null, nativeAudio: [], nativeProvider: '',
       };
     })(),
     sandbox: localStorage.getItem('sv-sandbox') === '1',
@@ -1767,6 +1784,8 @@
     state.player.nativeActive = false;
     state.player.nativeLevels = [];
     state.player.nativeSkip = null;
+    state.player.nativeAudio = [];
+    state.player.nativeProvider = '';
   }
 
   function showNativePlayer() {
@@ -1815,8 +1834,21 @@
       } else select.value = 'auto';
     }
     const control = $('#pcQualityControl');
-    if (control) { control.classList.remove('ctl-unsupported'); control.removeAttribute('data-note'); }
-    select.disabled = false;
+    if (control) {
+      control.classList.remove('ctl-unsupported');
+      control.removeAttribute('data-note');
+      // Be honest when the upstream master advertises a single rendition: the
+      // menu genuinely has nothing to switch between, so say so instead of
+      // leaving a dead-looking dropdown the user keeps poking at.
+      if (levels.length <= 1) {
+        const only = levels[0] && levels[0].height ? `${levels[0].height}p` : 'source';
+        control.setAttribute('data-note', t('qualitySingle') || `Source provides ${only} only`);
+        select.title = t('qualitySingle') || `This episode is served at ${only} only`;
+      } else {
+        select.title = t('qualityReal') || 'Direct stream — quality really switches';
+      }
+    }
+    select.disabled = levels.length <= 1;
   }
 
   function applyNativeQuality(value) {
@@ -1827,6 +1859,122 @@
       if (nativeHls.levels && nativeHls.levels[index]) { nativeHls.currentLevel = index; return true; }
     }
     return false;
+  }
+
+  // ---------------------------------------------------------------------
+  // Native multi-audio (AnimeWorld/Zephyrix masters carry Hindi, Tamil,
+  // Telugu, Bengali, Malayalam, English and Japanese as separate HLS audio
+  // renditions). hls.js can hot-swap them without reloading the video, so the
+  // language dropdown becomes instant instead of a stream restart.
+  // ---------------------------------------------------------------------
+  const AUDIO_LANG_ALIASES = {
+    hin: 'hi', hi: 'hi', eng: 'en', en: 'en', jpn: 'ja', jp: 'ja', ja: 'ja',
+    tam: 'ta', ta: 'ta', tel: 'te', te: 'te', ben: 'bn', bn: 'bn',
+    mal: 'ml', ml: 'ml', kan: 'kn', kn: 'kn', mar: 'mr', mr: 'mr',
+    guj: 'gu', gu: 'gu', pan: 'pa', pa: 'pa', urd: 'ur', ur: 'ur',
+    kor: 'ko', ko: 'ko', zho: 'zh', chi: 'zh', zh: 'zh', spa: 'es', es: 'es',
+    fra: 'fr', fre: 'fr', fr: 'fr', deu: 'de', ger: 'de', de: 'de',
+    por: 'pt', pt: 'pt', ara: 'ar', ar: 'ar', rus: 'ru', ru: 'ru',
+  };
+  const AUDIO_LANG_LABELS = {
+    hi: 'हिन्दी / Hindi', en: 'English', ja: '日本語 / Japanese', ta: 'தமிழ் / Tamil',
+    te: 'తెలుగు / Telugu', bn: 'বাংলা / Bengali', ml: 'മലയാളം / Malayalam',
+    kn: 'ಕನ್ನಡ / Kannada', mr: 'मराठी / Marathi', gu: 'ગુજરાતી / Gujarati',
+    pa: 'ਪੰਜਾਬੀ / Punjabi', ur: 'اردو / Urdu', ko: 'Korean', zh: 'Chinese',
+    es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', ar: 'Arabic', ru: 'Russian',
+  };
+  // Normalise whatever the manifest says ("hin", "hi-IN", "Hindi") to a 2-letter code.
+  function normalizeAudioLang(raw) {
+    const value = String(raw || '').trim().toLowerCase();
+    if (!value) return '';
+    const base = value.split(/[-_]/)[0];
+    if (AUDIO_LANG_ALIASES[base]) return AUDIO_LANG_ALIASES[base];
+    if (base.length === 2) return base;
+    return '';
+  }
+  function audioTrackLabel(track, index) {
+    const code = normalizeAudioLang(track && (track.lang || track.language));
+    if (code && AUDIO_LANG_LABELS[code]) return AUDIO_LANG_LABELS[code];
+    const name = String((track && (track.name || track.label)) || '').trim();
+    if (name) return name;
+    return code ? code.toUpperCase() : `Audio ${index + 1}`;
+  }
+
+  // Fill #pcAnimeAudio with the manifest's real audio renditions. Falls back to
+  // the legacy SUB/DUB selector (handled by syncAnimeAudioControl) when the
+  // stream is single-audio, so nothing regresses on the old provider.
+  function syncNativeAudioTracks() {
+    const p = state.player;
+    const select = $('#pcAnimeAudio');
+    const control = $('#pcAnimeAudioControl');
+    if (!select || !nativeHls) return false;
+    const tracks = nativeHls.audioTracks || [];
+    if (tracks.length <= 1) { p.nativeAudio = []; return false; }
+    p.nativeAudio = tracks.map((track, index) => ({
+      index, lang: normalizeAudioLang(track.lang || track.language),
+      label: audioTrackLabel(track, index),
+    }));
+    select.innerHTML = '';
+    p.nativeAudio.forEach((track) => {
+      const opt = document.createElement('option');
+      opt.value = 'aud:' + track.index;
+      opt.textContent = track.label;
+      select.appendChild(opt);
+    });
+    select.disabled = false;
+    control?.classList.remove('hidden', 'anime-hidden', 'ctl-unsupported');
+    control?.setAttribute('data-note', state.uiLang === 'hi'
+      ? `${p.nativeAudio.length} भाषाएँ उपलब्ध`
+      : `${p.nativeAudio.length} languages available`);
+
+    // Pick the user's saved language if this episode actually has it, else the
+    // site language, else English, else whatever came first.
+    const saved = localStorage.getItem('sv-audio-lang') || p.audioLang || '';
+    const wanted = [saved, state.uiLang === 'hi' ? 'hi' : '', 'en']
+      .map(normalizeAudioLang).filter(Boolean);
+    let chosen = -1;
+    for (const code of wanted) {
+      const hit = p.nativeAudio.find((track) => track.lang === code);
+      if (hit) { chosen = hit.index; break; }
+    }
+    if (chosen < 0) chosen = Number.isInteger(nativeHls.audioTrack) && nativeHls.audioTrack >= 0
+      ? nativeHls.audioTrack : p.nativeAudio[0].index;
+    select.value = 'aud:' + chosen;
+    applyNativeAudioTrack('aud:' + chosen, true);
+    const status = $('#audioTrackStatus');
+    if (status) {
+      const active = p.nativeAudio.find((track) => track.index === chosen);
+      status.className = 'audio-track-status confirmed';
+      status.textContent = '✓ ' + (active ? active.label.split(' / ')[0] : 'AUDIO');
+    }
+    return true;
+  }
+
+  // Switch the live audio rendition. hls.js keeps the video buffer, so the
+  // picture never stops — only the voice changes.
+  function applyNativeAudioTrack(value, silent) {
+    const p = state.player;
+    if (!nativeHls || !String(value).startsWith('aud:')) return false;
+    const index = Number(String(value).slice(4));
+    const track = (p.nativeAudio || []).find((item) => item.index === index);
+    if (!track) return false;
+    try { nativeHls.audioTrack = index; } catch (e) { return false; }
+    if (track.lang) {
+      p.audioLang = track.lang;
+      localStorage.setItem('sv-audio-lang', track.lang);
+      // Keep the SUB/DUB memory sensible: anything that isn't Japanese is a dub.
+      p.animeDub = track.lang !== 'ja';
+      localStorage.setItem('sv-anime-dub', p.animeDub ? '1' : '0');
+    }
+    const status = $('#audioTrackStatus');
+    if (status) {
+      status.className = 'audio-track-status confirmed';
+      status.textContent = '✓ ' + track.label.split(' / ')[0];
+    }
+    if (!silent) {
+      toast((state.uiLang === 'hi' ? 'ऑडियो: ' : 'Audio: ') + track.label);
+    }
+    return true;
   }
 
   function syncNativeSubtitleOptions(tracks) {
@@ -1881,9 +2029,13 @@
     if (showLoad) showPlayerLoading(t('nativePlayer') || 'Direct stream');
     let data;
     try {
+      // The title lets the server try AnimeWorld first (multi-audio: Hindi,
+      // Tamil, Telugu… plus 240p-1080p). It falls back to the id-based
+      // provider on its own, so sending it can only help.
       const response = await fetch(`/api/anime/stream?id=${encodeURIComponent(id)}` +
         `&source=${useAnilist ? 'anilist' : 'mal'}&ep=${encodeURIComponent(p.animeEpisode || 1)}` +
-        `&lang=${p.animeDub ? 'dub' : 'sub'}`, { headers: { Accept: 'application/json' } });
+        `&lang=${p.animeDub ? 'dub' : 'sub'}` +
+        `&title=${encodeURIComponent(p.title || '')}`, { headers: { Accept: 'application/json' } });
       if (!response.ok) return false;
       data = await response.json();
     } catch (e) { return false; }
@@ -1924,7 +2076,15 @@
           fragLoadingMaxRetry: 4,
           manifestLoadingMaxRetry: 3,
         });
-        nativeHls.on(Hls.Events.MANIFEST_PARSED, () => { syncNativeQualityOptions(); finish(true); });
+        nativeHls.on(Hls.Events.MANIFEST_PARSED, () => {
+          syncNativeQualityOptions();
+          syncNativeAudioTracks();
+          finish(true);
+        });
+        // Some masters expose their audio group slightly after the manifest.
+        if (Hls.Events.AUDIO_TRACKS_UPDATED) {
+          nativeHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => syncNativeAudioTracks());
+        }
         nativeHls.on(Hls.Events.LEVEL_SWITCHED, () => updateNativeQualityBadge());
         nativeHls.on(Hls.Events.ERROR, (evt, info) => {
           if (!info || !info.fatal) return;
@@ -1948,12 +2108,18 @@
     }
 
     syncNativeSubtitleOptions(data.tracks || []);
+    p.nativeProvider = data.provider || '';
+    const multi = syncNativeAudioTracks();
+    if (!multi) syncAnimeAudioControl();
     wireSkipIntro();
     hidePlayerLoading();
     try { await video.play(); } catch (e) { /* autoplay policy: user taps play */ }
     const badge = $('#plSourceName');
     if (badge) badge.textContent = '';
-    toast(`${t('nativePlayer') || 'Direct stream'} · ${data.provider}`);
+    const extra = multi
+      ? ` · ${(p.nativeAudio || []).length} ${state.uiLang === 'hi' ? 'भाषाएँ' : 'languages'}`
+      : '';
+    toast(`${t('nativePlayer') || 'Direct stream'} · ${data.provider}${extra}`);
     return true;
   }
 
@@ -2087,12 +2253,10 @@
     if (!wrap || !select) return;
     // Native playback: the control is fully functional, driven by real levels.
     if (state.player.nativeActive && nativeHls) {
-      wrap.classList.remove('anime-hidden', 'ctl-unsupported');
-      wrap.removeAttribute('data-note');
-      select.disabled = false;
-      select.title = state.uiLang === 'hi'
-        ? 'सीधी स्ट्रीम — क्वालिटी असल में बदलती है।'
-        : 'Direct stream — quality really switches.';
+      wrap.classList.remove('anime-hidden');
+      // syncNativeQualityOptions() owns the enabled/disabled + note state: it
+      // knows how many renditions the master actually advertises.
+      syncNativeQualityOptions();
       return;
     }
     if (state.player.media === 'anime') { wrap.classList.add('anime-hidden'); return; }
@@ -2495,7 +2659,17 @@
   function syncAnimeAudioControl() {
     const p = state.player;
     const sel = $('#pcAnimeAudio');
+    // A real multi-audio stream owns the dropdown; don't stomp its language
+    // list back down to SUB/DUB.
+    if (p.nativeActive && (p.nativeAudio || []).length > 1) return;
     if (sel) {
+      // Restore the SUB/DUB pair if a previous multi-audio episode replaced it.
+      if (!sel.querySelector('option[value="sub"]')) {
+        sel.innerHTML = `<option value="sub">${esc(t('animeSub') || 'Subbed (original)')}</option>` +
+          `<option value="dub">${esc(t('animeDub') || 'Dubbed')}</option>`;
+        sel.disabled = false;
+        $('#pcAnimeAudioControl')?.removeAttribute('data-note');
+      }
       sel.value = p.animeDub ? 'dub' : 'sub';
       const hasDub = animeSourcesFor(p.animeIds || {}, true).length > 0;
       const dubOpt = sel.querySelector('option[value="dub"]');
@@ -2737,7 +2911,26 @@
     inner.innerHTML = '';
     const clean = (items || []).filter(Boolean).slice(0, 14);
     if (!clean.length) {
-      $('#pcRecRow').classList.add('hidden');
+      // Never leave a silently-hidden empty row: the user reads that as
+      // "recommendations are broken". Say what happened and offer a retry.
+      if (recsHidden()) {
+        $('#pcRecRow').classList.add('hidden');
+      } else {
+        const msg = document.createElement('div');
+        msg.className = 'anime-empty';
+        msg.textContent = state.uiLang === 'hi'
+          ? 'अभी सुझाव नहीं मिल पाए।'
+          : 'No recommendations available right now.';
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'lc-btn';
+        retry.style.marginTop = '8px';
+        retry.textContent = state.uiLang === 'hi' ? 'फिर कोशिश करें' : 'Retry';
+        retry.onclick = () => { if (state.player.active) loadRecommendations(state.player); };
+        inner.appendChild(msg);
+        inner.appendChild(retry);
+        $('#pcRecRow').classList.remove('hidden');
+      }
       renderInlineRecommendationCards([]);
       return;
     }
@@ -2918,7 +3111,18 @@
   // Anime audio (SUB/DUB) — sits where "Preferred audio" is for movies/TV.
   const animeAudioSelect=$('#pcAnimeAudio');
   if(animeAudioSelect){
-    animeAudioSelect.onchange=(event)=>setAnimeDub(event.target.value==='dub');
+    animeAudioSelect.onchange=(event)=>{
+      const raw=event.target.value;
+      // Real multi-audio stream: swap the HLS rendition instantly, no reload.
+      if(String(raw).startsWith('aud:')){
+        if(!applyNativeAudioTrack(raw)){
+          toast(state.uiLang==='hi'?'यह ऑडियो ट्रैक लोड नहीं हो सका।':'That audio track could not be loaded.');
+        }
+        return;
+      }
+      // Legacy single-audio provider: SUB/DUB means a fresh stream request.
+      setAnimeDub(raw==='dub');
+    };
   }
   // Subtitle selector (native playback only).
   const subtitleSelect=$('#pcSubtitle');
@@ -3748,9 +3952,13 @@
     const cur = parseInt(el.textContent || '0', 10) || 0;
     if (cur === Number(n)) return;
     el.textContent = Number(n).toLocaleString();
-    el.animate(
-      [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
-      { duration: 350, easing: 'ease-out' });
+    // Web Animations is cosmetic here and missing in some embedded webviews.
+    if (typeof el.animate !== 'function') return;
+    try {
+      el.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
+        { duration: 350, easing: 'ease-out' });
+    } catch (e) { /* animation is optional */ }
   }
   pingPresence();
   setInterval(() => { if (!document.hidden) pingPresence(); }, 30000);
@@ -3910,7 +4118,26 @@
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js?v=11.1.0').catch(() => {});
+      // The query string MUST track APP_VERSION. A stale value here meant the
+      // browser kept an old worker alive, which kept serving a cache-first
+      // app.js from a previous release -- the classic "my fixes didn't apply"
+      // bug. Reload once when a new worker takes control so the user always
+      // lands on current code without a manual hard-refresh.
+      navigator.serviceWorker.register('/sw.js?v=' + APP_VERSION).then((reg) => {
+        reg.update?.();
+        reg.addEventListener?.('updatefound', () => {
+          const sw = reg.installing;
+          sw?.addEventListener('statechange', () => {
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) sw.postMessage({ type: 'SKIP_WAITING' });
+          });
+        });
+      }).catch(() => {});
+      let reloadedForSw = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloadedForSw) return;
+        reloadedForSw = true;
+        location.reload();
+      });
     }, { once: true });
   }
 

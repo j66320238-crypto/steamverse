@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
 
-const VERSION = '12.2.0';
+const VERSION = '12.4.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -536,6 +536,215 @@ setInterval(() => {
 /* Mirrors of the same anime source API, tried in order. */
 const ANIME_STREAM_HOSTS = ['megavid.buzz', 'megaplay.buzz'];
 
+/* ============================================================
+   AnimeWorld India (multi-audio provider)
+
+   Why this exists: the megavid path only ever exposes sub/dub and a
+   single video rendition. AnimeWorld serves one HLS master that carries
+   up to 7 audio languages (Hindi, Tamil, Telugu, Bengali, Malayalam,
+   English, Japanese) AND 240p-1080p renditions, so language and quality
+   both become real, instant, in-place switches.
+
+   FUTURE-PROOFING: this is a scraper, so every brittle value below is
+   overridable with an env var and every extraction step falls back
+   through a list of patterns. If the site moves domain or swaps player
+   again (it already went .net -> .top and zephyrflick -> zephyrix), you
+   change an env var on Render instead of editing code.
+   ============================================================ */
+const AW_SITES = String(process.env.ANIMEWORLD_HOSTS
+  || 'watchanimeworld.top,watchanimeworld.net,watchanimeworld.in')
+  .split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+
+// Player hosts we know how to talk to. Same PHP contract for each.
+const AW_PLAYER_HOSTS = String(process.env.ANIMEWORLD_PLAYER_HOSTS
+  || 'play.zephyrix.top,play.zephyrflick.top')
+  .split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+
+const AW_LANG_NAMES = {
+  hin: 'Hindi', tam: 'Tamil', tel: 'Telugu', ben: 'Bengali',
+  mal: 'Malayalam', eng: 'English', jpn: 'Japanese', kan: 'Kannada',
+  mar: 'Marathi', urd: 'Urdu',
+};
+
+function awHeaders(referer) {
+  return {
+    'User-Agent': UA,
+    Accept: 'text/html,application/xhtml+xml,application/json,*/*',
+    'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+    ...(referer ? { Referer: referer } : {}),
+  };
+}
+
+async function awFetchText(url, referer, timeoutMs = 15000, init = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, redirect: 'follow', headers: awHeaders(referer), ...init });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+/* Resolve a human title to the site's series slug. Cached for a day: slugs
+   effectively never change, and this is the slowest step. */
+async function awResolveSlug(title) {
+  const clean = String(title || '').trim();
+  if (!clean) return null;
+  return cached(`aw:slug:${clean.toLowerCase()}`, 24 * 60 * 60 * 1000, async () => {
+    // A direct slug guess is right most of the time and costs one request.
+    const guess = clean.toLowerCase()
+      .replace(/[’'`]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    for (const site of AW_SITES) {
+      const html = await awFetchText(`https://${site}/series/${guess}/`, `https://${site}/`, 12000);
+      if (html && /play\.zephyr|\/episode\//i.test(html)) return { slug: guess, site };
+    }
+    // Otherwise fall back to the site search and take the first series hit.
+    for (const site of AW_SITES) {
+      const html = await awFetchText(`https://${site}/?s=${encodeURIComponent(clean)}`, `https://${site}/`, 15000);
+      if (!html) continue;
+      const found = [...html.matchAll(/\/series\/([a-z0-9-]+)\/?"/gi)].map((m) => m[1]);
+      if (found.length) return { slug: found[0], site };
+    }
+    return null;
+  }, true);
+}
+
+/* Pull the player embed id out of an episode page. */
+function awExtractPlayer(html) {
+  if (!html) return null;
+  for (const host of AW_PLAYER_HOSTS) {
+    const re = new RegExp(host.replace(/\./g, '\\.') + '/video/([a-f0-9]{16,})', 'i');
+    const hit = html.match(re);
+    if (hit) return { host, id: hit[1] };
+  }
+  // Unknown player host but a recognisable /video/<hash> embed: try our known
+  // hosts against it rather than giving up.
+  const generic = html.match(/https?:\/\/([a-z0-9.-]+)\/video\/([a-f0-9]{16,})/i);
+  if (generic) return { host: generic[1].toLowerCase(), id: generic[2] };
+  return null;
+}
+
+/* Ask the player PHP endpoint for the signed master.m3u8. */
+async function awGetVideoSource(playerHost, videoId) {
+  const referer = `https://${playerHost}/video/${videoId}`;
+  const api = `https://${playerHost}/player/index.php?data=${encodeURIComponent(videoId)}&do=getVideo`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(api, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { ...awHeaders(referer), 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => null);
+    const src = body && (body.videoSource || body.securedLink);
+    return typeof src === 'string' && src.includes('.m3u8') ? src : null;
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+/* Read the master playlist so the UI can show the REAL languages and
+   qualities instead of guessing. */
+function awParseMaster(text) {
+  const audio = [];
+  const qualities = [];
+  if (!text) return { audio, qualities };
+  for (const line of text.split('\n')) {
+    if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
+      const lang = (line.match(/LANGUAGE="([^"]+)"/) || [])[1] || '';
+      const name = (line.match(/NAME="([^"]+)"/) || [])[1] || '';
+      const code = lang.toLowerCase();
+      if (!audio.some((a) => a.code === code && a.label === name)) {
+        audio.push({ code, label: AW_LANG_NAMES[code] || name || code || 'Audio', name });
+      }
+    } else if (line.startsWith('#EXT-X-STREAM-INF')) {
+      const res = (line.match(/RESOLUTION=\d+x(\d+)/) || [])[1];
+      const bw = Number((line.match(/BANDWIDTH=(\d+)/) || [])[1] || 0);
+      if (res) qualities.push({ height: Number(res), bandwidth: bw });
+    }
+  }
+  qualities.sort((a, b) => b.height - a.height);
+  return { audio, qualities };
+}
+
+/* Full pipeline: title + season/episode -> proxied master URL + track lists. */
+// Read the season/episode pairs the series page actually links to. Guessing
+// the URL works most of the time, but some shows start at 1x9 or use their own
+// season numbering, so the real list is what we trust first.
+function awCollectEpisodeLinks(html, slug, into) {
+  const re = new RegExp('/episode/' + slug.replace(/[^a-z0-9-]/gi, '.') + '-(\\d{1,3})x(\\d{1,4})/', 'g');
+  let m;
+  while ((m = re.exec(html || ''))) {
+    const s = Number(m[1]); const e = Number(m[2]);
+    if (Number.isFinite(s) && Number.isFinite(e)) into.set(`${s}x${e}`, { season: s, episode: e });
+  }
+  return into;
+}
+
+async function awListEpisodes(site, slug) {
+  return cached(`aw:eps:${site}:${slug}`, 6 * 60 * 60 * 1000, async () => {
+    const seriesUrl = `https://${site}/series/${slug}/`;
+    const html = await awFetchText(seriesUrl, `https://${site}/`, 15000);
+    if (!html) return [];
+    const found = awCollectEpisodeLinks(html, slug, new Map());
+
+    // The series page only renders one season inline; the rest load over
+    // admin-ajax (torofilm theme, action_select_season). Pull them so long
+    // runs like One Piece resolve past episode 61.
+    const postId = (html.match(/data-post="(\d+)"/) || [])[1];
+    const seasons = [...new Set([...html.matchAll(/data-season="(\d{1,3})"/g)].map((m2) => Number(m2[1])))]
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .slice(0, 40);
+    if (postId && seasons.length) {
+      const results = await Promise.allSettled(seasons.map((season) => awFetchText(
+        `https://${site}/wp-admin/admin-ajax.php?action=action_select_season&season=${season}&post=${postId}`,
+        seriesUrl, 12000,
+      )));
+      results.forEach((r) => {
+        if (r.status === 'fulfilled' && r.value) awCollectEpisodeLinks(r.value, slug, found);
+      });
+    }
+    return [...found.values()].sort((a, b) => (a.season - b.season) || (a.episode - b.episode));
+  }, true).catch(() => []);
+}
+
+async function awResolveEpisode(title, season, ep) {
+  const resolved = await awResolveSlug(title);
+  if (!resolved) return { ok: false, error: 'title not found on AnimeWorld' };
+  const { slug, site } = resolved;
+
+  // Their episode URLs are slug-{season}x{episode} with no zero padding.
+  // Order of attempts: the season the page really lists for this episode
+  // number, then the requested season, then season 1.
+  const listed = await awListEpisodes(site, slug);
+  const fromList = listed.filter((item) => item.episode === Number(ep)).map((item) => item.season);
+  const seasons = [...new Set([...fromList, Number(season) || 1, 1])];
+  for (const s of seasons) {
+    const pageUrl = `https://${site}/episode/${slug}-${s}x${ep}/`;
+    const html = await awFetchText(pageUrl, `https://${site}/series/${slug}/`, 15000);
+    if (!html) continue;
+    const player = awExtractPlayer(html);
+    if (!player) continue;
+    const source = await awGetVideoSource(player.host, player.id);
+    if (!source) continue;
+
+    const master = await awFetchText(source, `https://${player.host}/`, 15000);
+    const { audio, qualities } = awParseMaster(master);
+    // A master with no alternate audio is no better than megavid, so let the
+    // caller fall back rather than switching provider for nothing.
+    if (!audio.length) continue;
+
+    return {
+      ok: true,
+      provider: 'animeworld',
+      site, slug, season: s, episode: ep,
+      source: `/api/hls?url=${encodeURIComponent(source)}`,
+      audio, qualities,
+      multiAudio: audio.length > 1,
+    };
+  }
+  return { ok: false, error: 'episode not available on AnimeWorld' };
+}
+
 const routes = {
   '/api/health': async () => ({
     ok: true, version: VERSION, uptime: Math.round(process.uptime()),
@@ -859,8 +1068,21 @@ const routes = {
     const ep = Math.max(1, Math.min(9999, parseInt(q.get('ep'), 10) || 1));
     const kind = q.get('source') === 'anilist' ? 'ani' : 'mal';
     const lang = q.get('lang') === 'dub' ? 'dub' : 'sub';
-    const cacheKey = `animestream:${kind}:${id}:${ep}:${lang}`;
+    const title = String(q.get('title') || '').slice(0, 120);
+    const season = Math.max(1, Math.min(99, parseInt(q.get('season'), 10) || 1));
+    const cacheKey = `animestream:${kind}:${id}:${ep}:${lang}:${title.toLowerCase()}`;
     return cached(cacheKey, 5 * 60 * 1000, async () => {
+    // Prefer AnimeWorld when we know the title: it is the only provider that
+    // returns Hindi/Tamil/Telugu audio and genuine 240p-1080p renditions. If
+    // anything at all goes wrong we silently fall through to megavid, so this
+    // can only ever add capability, never remove it.
+    if (title) {
+      try {
+        const aw = await awResolveEpisode(title, season, ep);
+        if (aw && aw.ok) return aw;
+      } catch { /* fall through to the legacy providers */ }
+    }
+
     let lastError = 'no anime stream provider responded';
     for (const host of ANIME_STREAM_HOSTS) {
       const endpoint = `https://${host}/api/${kind}/${id}/${ep}/${lang}`;
@@ -971,12 +1193,19 @@ const HLS_ALLOWED_SUFFIXES = [
   '.stackpathdns.com', '.wizdeo.io', '.luxeat.lu', '.cloudycdn.services',
   '.intoday.in', '.akamaihd.net', '.trt.com.tr', '.wiseplayout.com',
   '.shemaroo.com', '.thelegitpro.in',
+  // AnimeWorld/Zephyrix segment CDNs. These are numbered and rotate
+  // (s11.zn-grid05.top today), so match by suffix, not by exact host.
+  '.zn-grid05.top', '.zn-grid04.top', '.zn-grid03.top', '.zn-grid02.top',
+  '.zn-grid01.top', '.zn-grid.top', '.zephyrix.top', '.zephyrflick.top',
+  ...String(process.env.HLS_ALLOWED_SUFFIXES || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean),
 ];
 const HLS_ALLOWED_EXACT = new Set([
   '103.225.189.136',
   // Anime stream hosts (native player path). These serve the m3u8/vtt returned
   // by the anime source APIs below and require a matching Referer.
   'megavid.buzz', 'megaplay.buzz', 'animeplay.cfd',
+  // AnimeWorld / Zephyrix multi-audio path.
+  ...AW_SITES, ...AW_PLAYER_HOSTS,
   ...String(process.env.HLS_ALLOWED_HOSTS || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean),
 ]);
 
@@ -987,6 +1216,12 @@ const HLS_REFERER_BY_HOST = [
   [/(^|\.)megavid\.buzz$/, 'https://megavid.buzz/'],
   [/(^|\.)megaplay\.buzz$/, 'https://megaplay.buzz/'],
   [/(^|\.)animeplay\.cfd$/, 'https://animeplay.cfd/'],
+  // Zephyrix serves the manifest AND the segments; both are hotlink-gated.
+  [/(^|\.)zephyrix\.top$/, 'https://play.zephyrix.top/'],
+  [/(^|\.)zephyrflick\.top$/, 'https://play.zephyrflick.top/'],
+  // Segment CDNs used by the above (zn-grid05.top and friends).
+  [/(^|\.)zn-grid\d*\.top$/, 'https://play.zephyrix.top/'],
+  [/(^|\.)watchanimeworld\.(top|net|in)$/, 'https://watchanimeworld.top/'],
 ];
 
 function hlsRefererFor(hostname) {

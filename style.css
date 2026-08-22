@@ -1382,3 +1382,9 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
   border-color:rgba(120,160,255,.45);
 }
 #pcSubtitleControl.hidden{display:none}
+
+/* Informational (not error) note under a control: used when a stream genuinely
+   offers a single quality, so the disabled dropdown is explained rather than
+   just looking broken. */
+.lc-ctl[data-note]:not(.ctl-unsupported)::after{content:attr(data-note);display:block;margin-top:3px;font-size:9px;line-height:1.25;color:var(--muted);max-width:190px;white-space:normal}
+.lc-ctl select:disabled{opacity:.55;cursor:not-allowed}

@@ -1,6 +1,6 @@
 'use strict';
-const VERSION = 'streamverse-shell-v12.2.0';
-const SHELL = ['/', '/index.html', '/style.css?v=12.2.0', '/app.js?v=12.2.0', '/manifest.webmanifest'];
+const VERSION = 'streamverse-shell-v12.4.0';
+const SHELL = ['/', '/index.html', '/style.css?v=12.4.0', '/app.js?v=12.4.0', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -30,7 +30,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (/\.(?:js|css|webmanifest|png|svg)$/.test(url.pathname)) {
+  // Code assets are network-FIRST. Cache-first here is what pinned users to a
+  // previous release's app.js even after a version bump; the cache is now only
+  // a offline fallback, never the preferred answer for js/css.
+  if (/\.(?:js|css|webmanifest)$/.test(url.pathname)) {
+    event.respondWith(
+      fetch(request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(VERSION).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  if (/\.(?:png|svg|ico|jpg|jpeg|webp)$/.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const fresh = fetch(request).then((response) => {
@@ -41,4 +57,10 @@ self.addEventListener('fetch', (event) => {
       })
     );
   }
+});
+
+// Let the page tell a waiting worker to activate immediately, so a new release
+// takes effect on the next controllerchange instead of after every tab closes.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
