@@ -1277,3 +1277,47 @@ html[lang="hi"] .nav-links a,html[lang="hi"] .btn{letter-spacing:0}
   padding:3px 9px;border-radius:20px;color:#a7f3d0;background:rgba(16,185,129,.12);
   border:1px solid rgba(16,185,129,.34);font-size:11px;font-weight:800;
 }
+.voice-boost-btn.active{
+  color:#d1fae5;border-color:rgba(16,185,129,.55);background:rgba(16,185,129,.16);
+  box-shadow:0 0 0 1px rgba(16,185,129,.12) inset;
+}
+
+/* ============================================================
+   v12 — anime sub/dub switch, quality control, recommendation
+   collapse/hide controls
+   ============================================================ */
+.anime-dub-toggle{display:inline-flex;gap:4px;margin-left:auto;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:3px}
+.anime-dub-toggle .dub-opt{appearance:none;border:0;background:transparent;color:#cbd5e1;font:800 11px/1 Inter,system-ui,sans-serif;
+  letter-spacing:.06em;padding:7px 14px;border-radius:999px;cursor:pointer;transition:background .18s,color .18s}
+.anime-dub-toggle .dub-opt:hover{color:#fff}
+.anime-dub-toggle .dub-opt.active{background:linear-gradient(135deg,#e50914,#b3060f);color:#fff;
+  box-shadow:0 2px 10px rgba(229,9,20,.4)}
+.anime-dub-toggle .dub-opt:focus-visible{outline:2px solid #22d3ee;outline-offset:2px}
+
+/* Recommendation header controls */
+.rec-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rec-head-actions{display:inline-flex;gap:6px}
+.rec-toggle-btn{appearance:none;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);
+  color:#cbd5e1;font:700 11px/1 Inter,system-ui,sans-serif;padding:6px 12px;border-radius:999px;cursor:pointer;
+  transition:background .18s,color .18s,border-color .18s}
+.rec-toggle-btn:hover{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3)}
+.rec-toggle-btn:focus-visible{outline:2px solid #22d3ee;outline-offset:2px}
+.pc-rec-row.collapsed .rec-row{display:none}
+
+.inline-rec-head-actions{display:inline-flex;align-items:center;gap:6px}
+.inline-rec-close{appearance:none;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.45);
+  color:#e2e8f0;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;
+  display:grid;place-items:center;transition:background .18s,color .18s}
+.inline-rec-close:hover{background:rgba(229,9,20,.85);color:#fff;border-color:transparent}
+.inline-rec-close:focus-visible{outline:2px solid #22d3ee;outline-offset:2px}
+
+/* Quality control sits with the other player selects */
+#pcQualityControl.anime-hidden{display:none}
+.setting-inline-note{display:block;margin-top:4px;font-size:11px;color:#94a3b8;line-height:1.45}
+
+@media (max-width:640px){
+  .anime-dub-toggle{margin-left:0}
+  .rec-head-row{align-items:flex-start}
+  .anime-dub-toggle .dub-opt{padding:6px 11px}
+}

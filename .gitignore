@@ -1,7 +1,40 @@
+# Dependencies
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+
+# Environment / secrets — never commit the TMDB key
 .env
 .env.*
 !.env.example
-node_modules/
-npm-debug.log*
-.DS_Store
+*.pem
+.netrc
+
+# Logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+
+# Caches & build output
+.cache/
+dist/
+build/
+out/
+coverage/
+.tmp/
+tmp/
+*.tsbuildinfo
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini

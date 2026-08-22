@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v11.0 — client
+   StreamVerse v11.1 — client
    • Same-origin Node/Render API keeps credentials and quota off the browser
    • Multiple fallback embed sources with season/episode picker
    • Playlists (multiple, named) — Netflix-style
@@ -24,7 +24,7 @@
   const ANILIST_VIDEO_QUERY = `query ($id: Int, $idMal: Int) {
     Media(id: $id, idMal: $idMal, type: ANIME) {
       id idMal title { romaji english native } coverImage { extraLarge large } bannerImage
-      trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
+      streamingEpisodes { title thumbnail url site } siteUrl
     }
   }`;
 
@@ -64,7 +64,7 @@
       audioNote: 'Audio tracks depend on the selected provider. Use the provider player menu if your preference is unavailable.',
       swipeRecommendations: 'Swipe up for recommendations', recommended: 'Recommended for you', seeAllUp: 'See all ↑',
       swipeDown: 'Swipe down to return', reload: 'Reload', youMayLike: 'You may also like', episodes: 'Episodes',
-      source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio',
+      source: 'Source', prev: '‹ Prev', next: 'Next ›', mute: 'Mute', unmute: 'Unmute', clearAudio: 'Clear audio', voiceBoost: 'Voice Boost', voiceBoostOn: 'Voice Boost enabled', voiceBoostOff: 'Voice Boost disabled', voiceVolume: 'Voice Volume',
       settings: 'Settings', interfaceLanguage: 'Interface Language',
       interfaceLanguageNote: 'Changes website buttons, menus and messages.', contentLanguage: 'Titles & Description Language', contentLanguageNote: 'Titles and descriptions use this language where a translation exists.',
       countryNote: 'Used for official streaming options under the player.', sourceNote: 'Default source when you tap Watch.',
@@ -82,10 +82,10 @@
       searchFailed: 'Search failed. Please try again.', detailsFailed: 'Could not load details.', noSynopsis: 'No synopsis available.',
       seasonsEpisodes: 'Seasons & Episodes — tap an episode to watch', topCast: 'Top Cast', moreLikeThis: 'More Like This',
       loadingEpisodes: 'Loading episodes…', noEpisodeData: 'No episode data for this season.', episodesFailed: 'Could not load episodes.',
-      animeVideo: 'Anime video', officialPreview: 'Official preview / licensed link', trailer: 'Trailer',
+      animeVideo: 'Anime video', officialPreview: 'Official provider link',
       noAnimePreview: 'No embeddable official preview was published for this title.', officialAnimeLinks: 'Official anime links',
-      officialUnavailable: 'Official anime video not available',
-      animeUnavailableHelp: 'This title has no embeddable official preview right now. Open a licensed provider below or try again later.',
+      officialUnavailable: 'Anime playback unavailable',
+      animeUnavailableHelp: 'No regular player match was found for this anime. Open a licensed provider below or try another title.',
       autoBest: 'Auto (best)', pickingServer: 'Picking best server…', preparing: 'Preparing…', tryAgain: 'Try again',
       serverBusy: 'All servers are busy', nextServer: 'Next server', preferredAudioAuto: 'Auto (provider default)',
       hindiPreferred: 'Hindi (when provider offers it)', languageUpdated: 'Language updated', interfaceUpdated: 'Interface changed to Hindi',
@@ -96,6 +96,9 @@
       connecting: 'Connecting…', streamUnavailable: 'Stream unavailable. Try another channel.', hlsUnsupported: 'Live TV is not supported in this browser.',
       audioEnhanced: 'Clear audio enabled', audioNormal: 'Normal audio restored', quality: 'Quality', speed: 'Speed',
       playbackSpeed: 'Playback speed', speedApplied: 'Playback speed: {speed}×', speedProviderNote: 'This provider uses its own speed menu.',
+      collapse: 'Collapse', expand: 'Expand', hide: 'Hide', showRecommendations: 'Show recommendations', audioUnavailable: 'No audio-capable server available',
+      recommendationsSetting: 'Recommendations while watching', recsShown: 'Recommendations shown', recsHidden: 'Recommendations hidden',
+      subAudio: 'Subbed', dubAudio: 'Dubbed', animeAudio: 'Anime audio', qualityNote: 'Applied on players that support a quality cap.',
       smartResults: 'Smart results: {label}', filterAll: 'All', filterMovies: 'Movies', filterTV: 'TV', filterAnime: 'Anime',
       hindiOriginal: 'Hindi original audio', hindiRequested: 'Hindi audio requested', tryHindiSource: 'Try Hindi-dub source', audioNotGuaranteed: 'Dub availability is controlled by the selected provider.',
       resume: 'Resume', recentlyOpened: 'Recently opened', playlistName: 'Playlist name:', newPlaylistName: 'New playlist name:',
@@ -121,7 +124,7 @@
       swipeRecommendations: 'सुझावों के लिए ऊपर स्वाइप करें', recommended: 'आपके लिए सुझाव', seeAllUp: 'सभी देखें ↑',
       swipeDown: 'वापस आने के लिए नीचे स्वाइप करें', reload: 'फिर लोड करें', youMayLike: 'आपको यह भी पसंद आ सकता है',
       episodes: 'एपिसोड', source: 'सर्वर', prev: '‹ पिछला', next: 'अगला ›', mute: 'म्यूट', unmute: 'आवाज़ चालू',
-      clearAudio: 'साफ़ ऑडियो', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
+      clearAudio: 'साफ़ ऑडियो', voiceBoost: 'वॉइस बूस्ट', voiceBoostOn: 'वॉइस बूस्ट चालू', voiceBoostOff: 'वॉइस बूस्ट बंद', voiceVolume: 'आवाज़ की ताकत', settings: 'सेटिंग्स', interfaceLanguage: 'वेबसाइट की भाषा',
       interfaceLanguageNote: 'वेबसाइट के बटन, मेनू और संदेशों की भाषा बदलती है।', contentLanguage: 'शीर्षक और विवरण की भाषा', contentLanguageNote: 'जहाँ अनुवाद उपलब्ध है, शीर्षक और विवरण इसी भाषा में दिखेंगे।',
       countryNote: 'प्लेयर के नीचे आधिकारिक सेवाएँ दिखाने के लिए उपयोग होता है।', sourceNote: 'देखें दबाने पर खुलने वाला डिफ़ॉल्ट सर्वर।',
       emptyMyList: 'आपकी सूची खाली है। कोई शीर्षक जोड़कर यहाँ सहेजें।', emptyPlaylist: 'यह प्लेलिस्ट खाली है। कोई शीर्षक चुनकर इसमें जोड़ें।',
@@ -138,10 +141,10 @@
       searchFailed: 'खोज नहीं हो सकी। फिर कोशिश करें।', detailsFailed: 'जानकारी लोड नहीं हो सकी।', noSynopsis: 'विवरण उपलब्ध नहीं है।',
       seasonsEpisodes: 'सीज़न और एपिसोड — देखने के लिए एपिसोड दबाएँ', topCast: 'मुख्य कलाकार', moreLikeThis: 'ऐसे और शीर्षक',
       loadingEpisodes: 'एपिसोड लोड हो रहे हैं…', noEpisodeData: 'इस सीज़न के एपिसोड उपलब्ध नहीं हैं।', episodesFailed: 'एपिसोड लोड नहीं हो सके।',
-      animeVideo: 'ऐनिमे वीडियो', officialPreview: 'आधिकारिक प्रीव्यू / लाइसेंस प्राप्त लिंक', trailer: 'ट्रेलर',
+      animeVideo: 'ऐनिमे वीडियो', officialPreview: 'आधिकारिक प्रदाता लिंक',
       noAnimePreview: 'इस शीर्षक का एम्बेड होने वाला आधिकारिक प्रीव्यू उपलब्ध नहीं है।', officialAnimeLinks: 'आधिकारिक ऐनिमे लिंक',
-      officialUnavailable: 'आधिकारिक ऐनिमे वीडियो उपलब्ध नहीं है',
-      animeUnavailableHelp: 'अभी एम्बेड होने वाला आधिकारिक प्रीव्यू नहीं है। नीचे किसी लाइसेंस प्राप्त सेवा को खोलें या बाद में कोशिश करें।',
+      officialUnavailable: 'ऐनिमे प्लेबैक उपलब्ध नहीं है',
+      animeUnavailableHelp: 'इस ऐनिमे का सामान्य प्लेयर मैच नहीं मिला। नीचे लाइसेंस प्राप्त सेवा खोलें या दूसरा शीर्षक आज़माएँ।',
       autoBest: 'ऑटो (सबसे अच्छा)', pickingServer: 'सबसे अच्छा सर्वर चुना जा रहा है…', preparing: 'तैयार हो रहा है…',
       tryAgain: 'फिर कोशिश करें', serverBusy: 'सभी सर्वर व्यस्त हैं', nextServer: 'अगला सर्वर', preferredAudioAuto: 'ऑटो (प्रदाता का डिफ़ॉल्ट)',
       hindiPreferred: 'हिन्दी (यदि प्रदाता पर उपलब्ध हो)', languageUpdated: 'कंटेंट की भाषा बदल दी गई', interfaceUpdated: 'वेबसाइट अब हिन्दी में है',
@@ -152,6 +155,9 @@
       streamUnavailable: 'स्ट्रीम उपलब्ध नहीं है। दूसरा चैनल आज़माएँ।', hlsUnsupported: 'इस ब्राउज़र में लाइव टीवी समर्थित नहीं है।',
       audioEnhanced: 'साफ़ ऑडियो चालू है', audioNormal: 'सामान्य ऑडियो बहाल', quality: 'क्वालिटी', speed: 'स्पीड',
       playbackSpeed: 'वीडियो स्पीड', speedApplied: 'वीडियो स्पीड: {speed}×', speedProviderNote: 'इस सर्वर का अपना स्पीड मेनू है।',
+      collapse: 'छोटा करें', expand: 'बड़ा करें', hide: 'छिपाएँ', showRecommendations: 'सुझाव दिखाएँ', audioUnavailable: 'कोई ऑडियो-सक्षम सर्वर उपलब्ध नहीं',
+      recommendationsSetting: 'देखते समय सुझाव', recsShown: 'सुझाव दिख रहे हैं', recsHidden: 'सुझाव छिपे हैं',
+      subAudio: 'सब', dubAudio: 'डब', animeAudio: 'ऐनिमे ऑडियो', qualityNote: 'जो प्लेयर क्वालिटी कैप सपोर्ट करते हैं, उन पर लागू होगा।',
       smartResults: 'स्मार्ट नतीजे: {label}', filterAll: 'सभी', filterMovies: 'फ़िल्में', filterTV: 'टीवी', filterAnime: 'ऐनिमे',
       hindiOriginal: 'मूल हिन्दी ऑडियो', hindiRequested: 'हिन्दी ऑडियो माँगा गया', tryHindiSource: 'हिन्दी-डब सर्वर आज़माएँ', audioNotGuaranteed: 'डब की उपलब्धता चुने गए सर्वर पर निर्भर है।',
       resume: 'जारी रखें', recentlyOpened: 'हाल में खोला', playlistName: 'प्लेलिस्ट का नाम:', newPlaylistName: 'नई प्लेलिस्ट का नाम:',
@@ -200,7 +206,9 @@
      only applied when that title actually carries the requested track. */
   const providerAudioName = (code) => ({
     hi:'Hindi', en:'English', ta:'Tamil', te:'Telugu', ml:'Malayalam', kn:'Kannada',
-    bn:'Bengali', mr:'Marathi', ja:'Japanese', ko:'Korean', es:'Spanish', fr:'French', de:'German',
+    bn:'Bengali', mr:'Marathi', pa:'Punjabi', ur:'Urdu', gu:'Gujarati',
+    ja:'Japanese', ko:'Korean', es:'Spanish', fr:'French', de:'German',
+    it:'Italian', pt:'Portuguese', ru:'Russian', zh:'Chinese', ar:'Arabic', tr:'Turkish',
   })[String(code || '').slice(0,2).toLowerCase()] || '';
   const withQuery = (base, values) => {
     const query = new URLSearchParams();
@@ -209,7 +217,18 @@
     });
     return base + (base.includes('?') ? '&' : '?') + query.toString();
   };
+  // Quality hint passed to providers that document a max-height / quality param.
+  const QUALITY_VALUES = ['auto', '2160', '1080', '720', '480', '360'];
+  const qualityHeight = (q) => (q && q !== 'auto' ? String(q) : '');
+
+
   const STREAM_SOURCES = [
+    { id:'videasy', name:'Videasy · 4K + Dub', color:'#6366f1', priority:34, audioRequest:true, progressEvents:true, qualitySelect:true,
+      movie:(id,lang,speed,quality)=>withQuery(`https://player.videasy.to/movie/${id}`,{color:'e50914',autoplay:'true',dub:lang&&lang!=='en'?'true':'',audio:providerAudioName(lang),maxQuality:qualityHeight(quality)}),
+      tv:(id,s,e,lang,speed,quality)=>withQuery(`https://player.videasy.to/tv/${id}/${s}/${e}`,{color:'e50914',autoplay:'true',nextEpisode:'true',episodeSelector:'true',dub:lang&&lang!=='en'?'true':'',audio:providerAudioName(lang),maxQuality:qualityHeight(quality)}) },
+    { id:'vidfast', name:'VidFast · Fast CDN', color:'#0ea5e9', priority:32, qualitySelect:true, progressEvents:true,
+      movie:(id,lang,speed,quality)=>withQuery(`https://vidfast.vc/movie/${id}`,{theme:'e50914',autoPlay:'true',lang:lang||'',startingQuality:qualityHeight(quality)}),
+      tv:(id,s,e,lang,speed,quality)=>withQuery(`https://vidfast.vc/tv/${id}/${s}/${e}`,{theme:'e50914',autoPlay:'true',nextButton:'true',autoNext:'true',lang:lang||'',startingQuality:qualityHeight(quality)}) },
     { id:'vidcore', name:'VidCore · Multi-source', color:'#8b5cf6', priority:30, nativeSpeed:true, originalAudio:true,
       movie:(id,lang)=>withQuery(`https://vidcore.org/embed/movie/${id}`,{lang:lang||'',autoplay:'true',theme:'e50914'}),
       tv:(id,s,e,lang)=>withQuery(`https://vidcore.org/embed/tv/${id}/${s}/${e}`,{lang:lang||'',autoplay:'true',theme:'e50914'}) },
@@ -222,19 +241,47 @@
     // Peachify documents dub/audio selection, but its anti-bot gateway can
     // reject some regions. Keep it as an explicit Hindi-source option instead
     // of trapping Auto mode on a challenge page.
-    { id:'peachify', name:'Hindi Dub request · Beta', color:'#f97316', priority:40, auto:false, audioRequest:true, progressEvents:true,
-      movie:(id,lang)=>withQuery(`https://peachify.top/embed/movie/${id}`,{dub:providerAudioName(lang),audio:providerAudioName(lang),sub:lang||'',autoPlay:'true',accent:'e50914'}),
-      tv:(id,s,e,lang)=>withQuery(`https://peachify.top/embed/tv/${id}/${s}/${e}`,{dub:providerAudioName(lang),audio:providerAudioName(lang),sub:lang||'',autoPlay:'true',autoNext:30,accent:'e50914'}) },
     { id:'vidsrc-to', name:'VidSrc.to', color:'#e50914', priority:14,
       movie:(id)=>`https://vidsrc.to/embed/movie/${id}`,
       tv:(id,s,e)=>`https://vidsrc.to/embed/tv/${id}/${s}/${e}` },
     { id:'vidsrc-me', name:'VidSrc.me', color:'#dc2626', priority:12,
-      movie:(id)=>`https://vidsrc.me/embed/movie?tmdb=${id}`,
-      tv:(id,s,e)=>`https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
+      movie:(id)=>`https://vidsrcme.ru/embed/movie?tmdb=${id}`,
+      tv:(id,s,e)=>`https://vidsrcme.ru/embed/tv?tmdb=${id}&season=${s}&episode=${e}` },
     { id:'vidsrc-su', name:'VidSrc.su', color:'#b91c1c', priority:10,
       movie:(id)=>`https://vidsrc.su/embed/movie/${id}`,
       tv:(id,s,e)=>`https://vidsrc.su/embed/tv/${id}/${s}/${e}` },
+    { id:'vidsrc-cc', name:'VidSrc.cc v2', color:'#f43f5e', priority:16,
+      movie:(id)=>`https://vidsrc.cc/v2/embed/movie/${id}?autoPlay=true`,
+      tv:(id,s,e)=>`https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}?autoPlay=true` },
   ];
+
+  /* ========= ANIME STREAM SOURCES =========
+     These providers accept a MAL or AniList id directly plus an episode
+     number, so anime no longer depends on a TMDB match existing. Each entry
+     declares which id type it needs; sources whose id is missing are skipped. */
+  const ANIME_SOURCES = [
+    { id:'megaplay-sub', name:'MegaPlay · Sub', color:'#8b5cf6', priority:30, dub:false, idType:'any',
+      url:(ids,ep)=>ids.mal?`https://megaplay.buzz/stream/mal/${ids.mal}/${ep}/sub`:`https://megaplay.buzz/stream/ani/${ids.anilist}/${ep}/sub` },
+    { id:'megaplay-dub', name:'MegaPlay · Dub', color:'#a855f7', priority:28, dub:true, idType:'any',
+      url:(ids,ep)=>ids.mal?`https://megaplay.buzz/stream/mal/${ids.mal}/${ep}/dub`:`https://megaplay.buzz/stream/ani/${ids.anilist}/${ep}/dub` },
+    { id:'videasy-anime', name:'Videasy · Anime', color:'#6366f1', priority:26, idType:'anilist',
+      url:(ids,ep,dub)=>withQuery(`https://player.videasy.to/anime/${ids.anilist}/${ep}`,{color:'e50914',autoplay:'true',dub:dub?'true':'',episodeSelector:'true'}) },
+    { id:'vidlink-anime', name:'VidLink · Anime', color:'#14b8a6', priority:24, idType:'mal',
+      url:(ids,ep,dub)=>withQuery(`https://vidlink.pro/anime/${ids.mal}/${ep}/${dub?'dub':'sub'}`,{player:'jw',autoplay:'true',title:'true',nextbutton:'true'}) },
+    { id:'vidsrc-anime', name:'VidSrc · Anime', color:'#e50914', priority:20, idType:'any',
+      url:(ids,ep,dub)=>`https://vidsrc.cc/v2/embed/anime/${ids.mal?ids.mal:'ani'+ids.anilist}/${ep}/${dub?'dub':'sub'}?autoPlay=true` },
+  ];
+  function animeSourcesFor(ids, wantDub) {
+    return ANIME_SOURCES.filter((source) => {
+      if (source.idType === 'mal' && !ids.mal) return false;
+      if (source.idType === 'anilist' && !ids.anilist) return false;
+      if (source.idType === 'any' && !ids.mal && !ids.anilist) return false;
+      if (source.dub === true && !wantDub) return false;
+      if (source.dub === false && wantDub) return false;
+      return true;
+    }).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  }
+
   const AUTO_ID = 'auto';
   function orderedSources(includeManual = false) {
     const player = state && state.player || {};
@@ -242,6 +289,7 @@
       const score = (source) => {
         let value = source.priority || 0;
         if (player.originalLanguage === 'hi' && source.originalAudio) value += 70;
+        if (player.audioBoost && source.id === 'vidcore') value += 24;
         if (player.audioLang === 'hi' && source.audioRequest) value += 90;
         if (Number(player.speed || 1) !== 1 && source.remoteSpeed) value += 100;
         return value;
@@ -264,6 +312,13 @@
     { cat: 'News', name: 'CNBC TV18', logo: '📈', url: 'https://n18syndication.akamaized.net/bpk-tv/CNBC_TV18_NW18_MOB/output01/index.m3u8' },
     { cat: 'News', name: 'WION', logo: '🌐', url: 'https://d7x8z4yuq42qn.cloudfront.net/index_1.m3u8' },
     { cat: 'News', name: 'Republic TV', logo: '🇮🇳', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/2e31d831f08640ff92f65003bdc89991/index.m3u8' },
+    { cat: 'News', name: 'Republic Bharat', logo: '🇮🇳', url: 'https://vg-republictvlive.akamaized.net/v1/master/611d79b11b77e2f571934fd80ca1413453772ac7/vglive-sk-275673/main.m3u8' },
+    { cat: 'News', name: 'CNBC Awaaz', logo: '📈', url: 'https://n18syndication.akamaized.net/bpk-tv/CNBC_Awaaz_NW18_MOB/output01/master.m3u8' },
+    { cat: 'News', name: 'Good News Today', logo: '📰', url: 'https://cc-89m9zu7a2upfe.akamaized.net/hls/live/2016145/gnt/gntlive/playlist.m3u8' },
+    { cat: 'News', name: 'Zee Business', logo: '💹', url: 'https://dwby15d04agvq.cloudfront.net/index_5.m3u8' },
+    { cat: 'News', name: 'TV9 Bharatvarsh', logo: '🇮🇳', url: 'https://dyjmyiv3bp2ez.cloudfront.net/pub-iotv9hinjzgtpe/liveabr/playlist.m3u8' },
+    { cat: 'News', name: 'News Nation', logo: '🗞️', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/6cd2f649739a45ca9de1daf81cc7d0f2/index.m3u8' },
+    { cat: 'News', name: 'Kashish News', logo: '📍', url: 'https://server.thelegitpro.in/kashishnews/kashishnews/index.m3u8' },
 
     // Public-service channels
     { cat: 'Education', name: 'DD National', logo: '📺', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/40492a64c1db4a1385ba1a397d357d3a/index.m3u8' },
@@ -271,11 +326,25 @@
     { cat: 'Education', name: 'DD Kisan', logo: '🌾', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/4f053f2c12a24641bf701fb7f2376750/index.m3u8' },
     { cat: 'Education', name: 'Sansad TV 1', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/fff8f20221d5456e8922e689d71dedc3/index.m3u8' },
     { cat: 'Education', name: 'Sansad TV 2', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/e4182054dce340da9e0ff38b6b3658a4/index.m3u8' },
+    { cat: 'Sports', name: 'DD Sports', logo: '🏅', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/b17adfe543354fdd8d189b110617cddd/index.m3u8' },
+    { cat: 'Education', name: 'DD Uttar Pradesh', logo: '🏛️', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/70d4f6874fa64032a685e3123520f07d/index.m3u8' },
+    { cat: 'Education', name: 'DD Rajasthan', logo: '🏛️', url: 'https://d2lk5u59tns74c.cloudfront.net/out/v1/5b6bbbf682b741ecbe279f75a4a9a3e6/index.m3u8' },
+    { cat: 'Education', name: 'DD India', logo: '🌏', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/ceda14583477426aa162a65392d8ea07/index.m3u8' },
+    { cat: 'Education', name: 'DD Urdu', logo: '📺', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/9b91e9007e754db39a8b32c6bfc5b24a/index.m3u8' },
+    { cat: 'Education', name: 'DD Jharkhand', logo: '📍', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/e8c3741f8c154d3185831f4e31777fb2/index.m3u8' },
 
     // Free-to-air entertainment
     { cat: 'Entertainment', name: 'Dangal TV', logo: '🎭', url: 'https://live-dangal.akamaized.net/liveabr/playlist.m3u8' },
+    { cat: 'Entertainment', name: 'Dangal 2', logo: '🎭', url: 'https://live-dangal2.akamaized.net/liveabr/playlist.m3u8' },
+    { cat: 'Entertainment', name: 'Shemaroo TV', logo: '🎞️', url: 'https://airtelapp.shemaroo.com/shemarootv/smil:shemarootvadp.smil/playlist.m3u8' },
+    { cat: 'Entertainment', name: 'Shemaroo Umang', logo: '✨', url: 'https://airtelapp.shemaroo.com/shemarooumang/smil:shemarooumangadp.smil/playlist.m3u8' },
+    { cat: 'Entertainment', name: 'PTC Punjabi', logo: '🪯', url: 'https://d3qs3d2rkhfqrt.cloudfront.net/out/v1/3e22a9c278db4e3eb779afd42e41b0a6/index.m3u8' },
     { cat: 'Movies', name: 'Bhojpuri Cinema', logo: '🎬', url: 'https://live-bhojpuri.akamaized.net/liveabr/playlist.m3u8' },
     { cat: 'Music', name: '9XM', logo: '🎵', url: 'https://9xjio.wiseplayout.com/9XM/master.m3u8' },
+    { cat: 'Music', name: '9X Jalwa', logo: '🎶', url: 'https://wiselp.wiseplayout.com/9X_Jalwa/master.m3u8' },
+    { cat: 'Music', name: '9X Jhakaas', logo: '🎼', url: 'https://wiselp.wiseplayout.com/9X_Jhakaas/master.m3u8' },
+    { cat: 'Music', name: '9X Tashan', logo: '🎤', url: 'https://wiselp.wiseplayout.com/9X_Tashan/master.m3u8' },
+    { cat: 'Spiritual', name: 'Aastha', logo: '🕉️', url: 'https://aasthaott.akamaized.net/110923/smil:aasthatv.smil/index.m3u8' },
     { cat: 'Sports', name: 'Red Bull TV', logo: '🏎️', url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8' },
 
     // International public streams
@@ -283,6 +352,7 @@
     { cat: 'News', name: 'DW English', logo: '🇩🇪', url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8' },
     { cat: 'News', name: 'Euronews English', logo: '🇪🇺', url: 'https://cdn-euronews.akamaized.net/live/eds/euronews-en/25002/index.m3u8' },
     { cat: 'News', name: 'TRT World', logo: '🇹🇷', url: 'https://tv-trtworld.medya.trt.com.tr/master.m3u8' },
+    { cat: 'Entertainment', name: 'Arirang TV', logo: '🇰🇷', url: 'https://amdlive-ch01-ctnd-com.akamaized.net/arirang_1ch/smil:arirang_1ch.smil/playlist.m3u8' },
     { cat: 'News', name: 'Al Jazeera Arabic', logo: '🇶🇦', url: 'https://live-hls-web-aja.getaj.net/AJA/01.m3u8' },
   ];
 
@@ -318,19 +388,25 @@
       const saved = localStorage.getItem('sv-source');
       const validIds = new Set([AUTO_ID, ...STREAM_SOURCES.map(s=>s.id)]);
       return {
-        active: false, title: '', media: 'movie', tmdbId: null, malId: null, animeId: null, animeSource: 'mal', backdrop: '',
+        active: false, title: '', media: 'movie', catalogueMedia:'movie', tmdbId: null, malId: null, animeId: null, animeSource: 'mal', backdrop: '',
         season: 1, episode: 1, seasons: [], episodes: [],
         source: (saved && validIds.has(saved)) ? saved : AUTO_ID,
         autoIdx: 0, autoTimer: null, _lastSrcAt: 0, loadToken: 0,
         audioLang: localStorage.getItem('sv-audio-lang') || (((localStorage.getItem('sv-lang')||'').startsWith('hi')||(localStorage.getItem('sv-ui-lang')||'')==='hi')?'hi':''),
         speed: Number(localStorage.getItem('sv-playback-speed') || 1),
+        quality: localStorage.getItem('sv-quality') || 'auto',
+        audioBoost: localStorage.getItem('sv-player-voice-boost') !== '0',
         originalLanguage: '', audioConfirmed: false,
         animeVideo: null,
+        // Anime playback state (independent of the TMDB mapping)
+        animeIds: { mal: null, anilist: null },
+        animeEpisode: 1, animeEpisodeCount: 0, animeDub: localStorage.getItem('sv-anime-dub') === '1',
+        animeSourceId: AUTO_ID, animeAutoIdx: 0, animeDirect: false,
       };
     })(),
     sandbox: localStorage.getItem('sv-sandbox') === '1',
     useServer: location.protocol.startsWith('http') && !location.protocol.startsWith('file'),
-    live: { hls: null, currentChannel: null, audioContext: null, audioSource: null, compressor: null, gain: null, enhanced: false },
+    live: { hls:null,currentChannel:null,audioContext:null,audioSource:null,highpass:null,lowShelf:null,voiceEq:null,compressor:null,gain:null,enhanced:localStorage.getItem('sv-live-enhance')!=='0',boostLevel:Number(localStorage.getItem('sv-live-voice-volume')||1.3) },
   };
 
   let usage = readStoredJson('sv-usage', { bytes: 0, reqs: 0, since: Date.now() });
@@ -347,7 +423,10 @@
   const PLUS  = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
   const PLAY_SM = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
 
-  const isTouch = window.matchMedia('(hover: none)').matches || 'ontouchstart' in window;
+  // matchMedia is absent in some embedded/legacy webviews — never let the
+  // whole app fail to boot over a capability probe.
+  const mq = (query) => { try { return typeof window.matchMedia === 'function' ? window.matchMedia(query) : null; } catch (e) { return null; } };
+  const isTouch = (mq('(hover: none)') || {}).matches || 'ontouchstart' in window;
   if (isTouch) document.body.classList.add('touch');
 
   const apiCache = new Map();
@@ -402,29 +481,20 @@
       try { const u = new URL(String(value)); if (u.protocol === 'http:') u.protocol = 'https:'; return /^https?:$/.test(u.protocol) ? u.toString() : ''; }
       catch (e) { return ''; }
     };
-    const trailerId = media && media.trailer && String(media.trailer.site || '').toLowerCase() === 'youtube'
-      ? media.trailer.id : '';
-    const trailer = trailerId ? {
-      id: String(trailerId),
-      site: 'YouTube',
-      thumbnail: media.trailer.thumbnail || `https://i.ytimg.com/vi/${encodeURIComponent(trailerId)}/hqdefault.jpg`,
-      url: `https://www.youtube.com/watch?v=${encodeURIComponent(trailerId)}`,
-      embed: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
-    } : null;
+    const trailer = null;
     const episodes = (media && media.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e, i) => ({
       id: `${animeSource}-${animeId}-${i + 1}`, title: e.title || `Official episode ${i + 1}`,
       thumbnail: e.thumbnail || '', url: secureUrl(e.url), site: e.site || 'Official',
     }));
     const q = encodeURIComponent(title);
     return {
-      ok: Boolean(trailer || episodes.length), source: 'AniList', id: Number(animeId), id_type: animeSource,
+      ok: Boolean(episodes.length), source: 'AniList', id: Number(animeId), id_type: animeSource,
       mal_id: animeSource === 'mal' ? Number(animeId) : (media && media.idMal || null),
       anilist_id: animeSource === 'anilist' ? Number(animeId) : (media && media.id || null), title,
       trailer, episodes,
       official: [
         { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
         { name: 'Netflix', url: `https://www.netflix.com/search?q=${q}` },
-        { name: 'YouTube', url: `https://www.youtube.com/results?search_query=${q}+official+trailer` },
         ...(media && media.siteUrl ? [{ name: 'AniList', url: media.siteUrl }] : []),
       ],
     };
@@ -523,9 +593,9 @@
         return { countries: (list || []).map((c) => ({ code: c.iso_3166_1, name: c.english_name, native: c.native_name })) };
       }
       if (p.startsWith('/geo')) return { country_code: 'IN', country: 'India', flag: '🇮🇳' };
-      if (p.startsWith('/stats')) return { version: '11.0.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
+      if (p.startsWith('/stats')) return { version: '11.1.0-client', uptime_s: 0, api_health: { tmdb: 'ok', jikan: 'ok' }, cache_items: 0, requests: 0, backups_used: {} };
       if (p.startsWith('/cache/clear')) return { ok: true, cleared: 0 };
-      if (p.startsWith('/health')) return { ok: true, version: '11.0.0-client' };
+      if (p.startsWith('/health')) return { ok: true, version: '11.1.0-client' };
       throw new Error('unknown api path: ' + p);
     };
 
@@ -655,8 +725,9 @@
     const player=state.player;
     if(!player.active||!player.tmdbId||!Number.isFinite(position)||!Number.isFinite(duration)||duration<=0)return;
     const now=Date.now(); if(now-lastProgressSave<5000)return; lastProgressSave=now;
-    recordContinue({id:player.tmdbId,media_type:player.media,title:player.title,poster_path:player.poster||'',backdrop_path:player.backdrop||''},{
-      season:player.media==='tv'?player.season:null,episode:player.media==='tv'?player.episode:null,
+    const anime=player.catalogueMedia==='anime';
+    recordContinue({id:anime?player.animeId:player.tmdbId,media_type:anime?'anime':player.media,anime_source:anime?player.animeSource:null,title:player.title,poster_path:player.poster||'',backdrop_path:player.backdrop||''},{
+      animeSource:anime?player.animeSource:null,season:player.media==='tv'?player.season:null,episode:player.media==='tv'?player.episode:null,
       position,duration,progress:Math.round(position/duration*100),
     });
   }
@@ -1560,9 +1631,116 @@
   function buildEmbedUrl(source) {
     const player=state.player, selected=source||activeSource(), id=player.tmdbId;
     const lang=player.audioLang||'';
+    const quality=player.quality||'auto';
     return player.media==='movie'
-      ? selected.movie(id,lang,player.speed||1)
-      : selected.tv(id,player.season||1,player.episode||1,lang,player.speed||1);
+      ? selected.movie(id,lang,player.speed||1,quality)
+      : selected.tv(id,player.season||1,player.episode||1,lang,player.speed||1,quality);
+  }
+
+  /* ===== Anime direct playback (MAL/AniList id, no TMDB match needed) ===== */
+  function activeAnimeSource() {
+    const p=state.player;
+    const list=animeSourcesFor(p.animeIds,p.animeDub);
+    if(!list.length)return null;
+    if(p.animeSourceId===AUTO_ID)return list[p.animeAutoIdx]||list[0];
+    return list.find((s)=>s.id===p.animeSourceId)||list[0];
+  }
+  function buildAnimeUrl(source) {
+    const p=state.player;
+    const selected=source||activeAnimeSource();
+    if(!selected)return '';
+    return selected.url(p.animeIds,p.animeEpisode||1,p.animeDub);
+  }
+  function renderAnimeSourceChips() {
+    const wrap=$('#sourceChips'); if(!wrap)return;
+    const p=state.player;
+    wrap.innerHTML='';
+    const list=animeSourcesFor(p.animeIds,p.animeDub);
+    const mk=(id,label,color,isAuto)=>{
+      const b=document.createElement('button');
+      b.className='source-chip'+(id===p.animeSourceId?' active':'')+(isAuto?' auto-chip':'');
+      b.style.setProperty('--sc',color);
+      b.innerHTML=isAuto?`<span class="sc-auto">⚡</span><span>${esc(label)}</span>`
+        :`<span class="sc-dot" style="background:${color}"></span>${esc(label)}`;
+      b.onclick=()=>{
+        p.animeSourceId=id;
+        if(id===AUTO_ID)p.animeAutoIdx=0;
+        renderAnimeSourceChips(); loadAnimeStream(true);
+      };
+      wrap.appendChild(b);
+    };
+    mk(AUTO_ID,t('autoBest'),'#22d3ee',true);
+    list.forEach((s)=>mk(s.id,s.name,s.color,false));
+  }
+  function renderAnimeEpisodeChips() {
+    const wrap=$('#epChips'); if(!wrap)return;
+    const p=state.player;
+    const count=Math.max(1,Number(p.animeEpisodeCount)||1);
+    wrap.innerHTML='';
+    for(let i=1;i<=count;i++){
+      const b=document.createElement('button');
+      b.className='ep-chip'+(i===p.animeEpisode?' active':'');
+      b.textContent=i; b.title=`${t('episodes')} ${i}`;
+      b.onclick=()=>{
+        p.animeEpisode=i; renderAnimeEpisodeChips(); loadAnimeStream(true);
+        recordContinue({id:p.animeId,media_type:'anime',anime_source:p.animeSource,title:p.title,poster_path:p.backdrop||''},{animeSource:p.animeSource,episode:i});
+      };
+      wrap.appendChild(b);
+    }
+    const prev=$('#pcPrev'), next=$('#pcNext');
+    if(prev){prev.style.display='';prev.disabled=p.animeEpisode<=1;}
+    if(next){next.style.display='';next.disabled=p.animeEpisode>=count;}
+  }
+  async function tryAnimeSourceAt(idx, token) {
+    const p=state.player;
+    const list=animeSourcesFor(p.animeIds,p.animeDub);
+    if(!p.active||p.loadToken!==token)return false;
+    if(idx>=list.length){
+      showPlayerLoading(t('serverBusy'));
+      $('#plSourceName').textContent=`${t('nextServer')} · ${t('tryAgain')}`;
+      $$('.pf-inline-retry').forEach(n=>n.remove());
+      const bar=document.createElement('div');
+      bar.className='pf-inline-retry';
+      bar.innerHTML=`<button class="btn btn-play sm" id="pfAnimeRetry">${esc(t('tryAgain'))}</button>`;
+      $('#playerVideoWrap').appendChild(bar);
+      $('#pfAnimeRetry').onclick=()=>{bar.remove();loadAnimeStream(true);};
+      return false;
+    }
+    p.animeAutoIdx=idx;
+    const source=list[idx];
+    showPlayerLoading(`${state.uiLang==='hi'?'कोशिश':'Trying'} ${source.name}… (${idx+1}/${list.length})`);
+    const url=buildAnimeUrl(source);
+    $('#playerExt').href=url;
+    const ok=await setFrameSource(url,token);
+    if(!p.active||p.loadToken!==token)return false;
+    if(!ok&&p.animeSourceId===AUTO_ID)return tryAnimeSourceAt(idx+1,token);
+    if(ok){
+      hidePlayerLoading();
+      const note=$('#plSourceName');
+      note.textContent=`${state.uiLang==='hi'?'चल रहा है':'Playing via'} ${source.name}`;
+      setTimeout(()=>{if(!$('#playerLoading').classList.contains('show'))note.textContent='';},2500);
+      return true;
+    }
+    showPlayerLoading(t('tryAgain'));
+    return false;
+  }
+  function loadAnimeStream(showLoad=true) {
+    const p=state.player;
+    if(!p.active||!p.animeDirect)return;
+    const token=++p.loadToken;
+    $$('.pf-inline-retry, .player-fallback').forEach(n=>n.remove());
+    applyFramePolicy();
+    $('#playerTitle').textContent=`${p.title} — ${state.uiLang==='hi'?'एपिसोड':'Episode'} ${p.animeEpisode}`;
+    const list=animeSourcesFor(p.animeIds,p.animeDub);
+    if(!list.length){renderAnimeFallback(p.title,p.animeId,null,p.animeSource);return;}
+    if(p.animeSourceId===AUTO_ID){p.animeAutoIdx=0;tryAnimeSourceAt(0,token);return;}
+    const source=activeAnimeSource();
+    if(showLoad)showPlayerLoading(source.name);
+    setFrameSource(buildAnimeUrl(source),token).then((ok)=>{
+      if(!p.active||p.loadToken!==token)return;
+      if(!ok){p.animeSourceId=AUTO_ID;renderAnimeSourceChips();tryAnimeSourceAt(0,++p.loadToken);}
+      else hidePlayerLoading();
+    });
   }
   function updateAudioTrackStatus() {
     const status=$('#audioTrackStatus'); if(!status)return;
@@ -1576,8 +1754,15 @@
       status.title=t('audioNotGuaranteed');
       const button=status.querySelector('.try-hindi-source');
       if(button)button.onclick=()=>{
-        player.source='peachify'; player.autoIdx=0;
+        // Pick the highest-priority *reachable* source that documents an audio
+        // preference. peachify is offline, so never hard-code it here.
+        const target=orderedSources(true).find((s)=>s.audioRequest&&s.auto!==false)
+          ||STREAM_SOURCES.find((s)=>s.id==='videasy')
+          ||STREAM_SOURCES.find((s)=>s.id==='vidfast');
+        if(!target){toast(t('audioUnavailable')||'No audio-capable server available');return;}
+        player.source=target.id; player.autoIdx=0;
         renderSourceChips(); loadStream(true);
+        toast(`${target.name}`);
       };
     }else status.textContent='';
   }
@@ -1709,10 +1894,7 @@
   function loadStream(showLoad=true) {
     const p = state.player;
     if (!p.active) return;
-    if (p.media === 'anime') {
-      if (p.animeVideo && p.animeVideo.current) playAnimeVideo(p.animeVideo.current);
-      return;
-    }
+    if (p.media === 'anime') { if (p.animeDirect) loadAnimeStream(showLoad); return; }
     clearTimeout(p.autoTimer);
     const token = ++p.loadToken;
     $$('.pf-inline-retry, .player-fallback').forEach(n => n.remove());
@@ -1890,15 +2072,15 @@
     p.episode = episode;
     p.episodes = [];
     p.seasons = [];
-    p.animeVideo = null; p.originalLanguage=''; p.audioConfirmed=false;
-    p.media = media;
+    p.animeVideo = null; p.originalLanguage=''; p.audioConfirmed=false; p.isMappedAnime=false;
+    p.media = media; p.catalogueMedia=media;
     p.tmdbId = tmdbId || null;
     p.animeId = animeId || malId || null;
     p.animeSource = animeSource === 'anilist' ? 'anilist' : 'mal';
     p.malId = p.animeSource === 'mal' ? p.animeId : null;
 
     $('#playerModal').classList.remove('hidden');
-    if ($('#pcSpeed')) $('#pcSpeed').value=String(p.speed||1);
+    if ($('#pcSpeed')) $('#pcSpeed').value=String(p.speed||1); updateVoiceBoostButton();
     document.body.style.overflow = 'hidden';
     resetPlayerFeed();
     $('#playerTitle').textContent = p.title;
@@ -1907,28 +2089,58 @@
     restoreMoviePlayerChrome();
     showPlayerLoading(t('preparing'));
 
-    if (media === 'anime') {
-      if (!p.animeId) { renderAnimeFallback(p.title, null, null, p.animeSource); return; }
-      $('#playerTitle').textContent = p.title;
-      $('#plSourceName').textContent = t('officialPreview');
-      try {
-        const data = await api(`/anime/videos?id=${encodeURIComponent(p.animeId)}&source=${encodeURIComponent(p.animeSource)}&title=${encodeURIComponent(title || '')}`, { noCache: true });
-        if (!p.active || p.session !== session) return;
-        p.animeVideo = data || { title: title || t('anime'), trailer: null, episodes: [], official: [] };
-        if (data && data.title && data.title !== 'Anime') p.title = data.title;
-        $('#playerTitle').textContent = p.title;
-        renderAnimePlayer(data);
+    const requestedAnime=media==='anime';
+    if(requestedAnime){
+      if(!p.animeId){renderAnimeFallback(p.title,null,null,p.animeSource);return;}
+      p.animeDirect=false;
+      p.animeIds={mal:null,anilist:null};
+      p.animeEpisode=Math.max(1,Number(episode)||1);
+      p.animeEpisodeCount=0;
+      p.animeAutoIdx=0;
+      $('#plSourceName').textContent=state.uiLang==='hi'?'ऐनिमे सर्वर तैयार हो रहे हैं…':'Preparing anime servers…';
+
+      // Resolve BOTH ids so every anime provider can be used, then stream the
+      // episode directly. A TMDB match is now only an optional extra.
+      let details=null;
+      try{
+        const r=await api(`/anime/details?id=${encodeURIComponent(p.animeId)}&source=${encodeURIComponent(p.animeSource)}`);
+        details=r&&r.data||null;
+      }catch(error){ details=null; }
+      if(!p.active||p.session!==session)return;
+
+      p.animeIds={
+        mal: Number(details&&details.mal_id)||(p.animeSource==='mal'?Number(p.animeId):null)||null,
+        anilist: Number(details&&details.anilist_id)||(p.animeSource==='anilist'?Number(p.animeId):null)||null,
+      };
+      p.animeEpisodeCount=Math.max(Number(details&&details.episodes)||0,1);
+      if(details&&(details.title_english||details.title))p.title=details.title_english||details.title||p.title;
+      $('#playerTitle').textContent=p.title;
+
+      if(animeSourcesFor(p.animeIds,p.animeDub).length||animeSourcesFor(p.animeIds,!p.animeDub).length){
+        p.animeDirect=true;
+        p.media='anime'; p.catalogueMedia='anime';
+        setupAnimePlayerChrome();
+        renderAnimeSourceChips();
+        renderAnimeEpisodeChips();
+        loadAnimeStream(true);
         loadAnimeRecommendations(p);
-      } catch (e) {
-        if (!p.active || p.session !== session) return;
-        renderAnimeFallback(p.title, p.animeId, null, p.animeSource);
-        loadAnimeRecommendations(p);
+        clearTimeout(p._loadTimer);
+        return;
       }
-      clearTimeout(p._loadTimer);
-      p._loadTimer = setTimeout(() => { if (p.active) hidePlayerLoading(); }, 10000);
-      clearTimeout(p._muteTimer);
-      p._muteTimer = setTimeout(showUnmutePrompt, 3500);
-      return;
+
+      // No anime provider usable — fall back to a TMDB mapping if one exists.
+      try{
+        const mapped=await api(`/anime/tmdb?id=${encodeURIComponent(p.animeId)}&source=${encodeURIComponent(p.animeSource)}`);
+        if(!p.active||p.session!==session)return;
+        if(!mapped||!mapped.tmdb_id)throw new Error('no playable mapping');
+        p.media=mapped.media==='movie'?'movie':'tv'; p.tmdbId=mapped.tmdb_id;
+        p.isMappedAnime=true;
+      }catch(error){
+        if(!p.active||p.session!==session)return;
+        renderAnimeFallback(p.title,p.animeId,null,p.animeSource);
+        loadAnimeRecommendations(p);
+        return;
+      }
     }
 
     renderSourceChips();
@@ -1949,7 +2161,7 @@
     if (p.media === 'movie') await loadPlayerLanguages();
     loadStream(true);
     loadOfficialProviders();
-    loadRecommendations(p);
+    if(requestedAnime)loadAnimeRecommendations(p);else loadRecommendations(p);
     clearTimeout(p._loadTimer);
     p._loadTimer = setTimeout(() => { if (p.active) hidePlayerLoading(); }, 10000);
     clearTimeout(p._muteTimer);
@@ -1981,6 +2193,51 @@
     }
   }
 
+  // Anime uses its own servers/episodes; show a Sub/Dub switch instead of the
+  // TMDB "preferred audio" list, which anime providers do not accept.
+  function setupAnimePlayerChrome() {
+    const p=state.player;
+    const sourceRow=$('#sourceChips')&&$('#sourceChips').closest('.pc-row');
+    if(sourceRow)sourceRow.classList.remove('anime-hidden');
+    $('#pcEpisodes').classList.remove('hidden');
+    $('#pcAudioControl').classList.add('anime-hidden');
+    $('#pcQualityControl')?.classList.add('anime-hidden');
+    $('#audioTrackStatus').classList.remove('anime-hidden');
+    $('#playerNextSrc').classList.remove('anime-hidden');
+    restoreEpisodePanel();
+    const label=$('#pcEpisodes .pc-label');
+    if(label){
+      const sel=label.querySelector('#pcSeason');
+      if(sel)sel.remove();
+      if(!label.querySelector('.anime-dub-toggle')){
+        const box=document.createElement('div');
+        box.className='anime-dub-toggle';
+        box.innerHTML=`<button type="button" class="dub-opt${!p.animeDub?' active':''}" data-dub="sub">SUB</button>
+          <button type="button" class="dub-opt${p.animeDub?' active':''}" data-dub="dub">DUB</button>`;
+        box.querySelectorAll('.dub-opt').forEach((btn)=>{
+          btn.onclick=()=>{
+            const wantDub=btn.dataset.dub==='dub';
+            if(wantDub===p.animeDub)return;
+            if(!animeSourcesFor(p.animeIds,wantDub).length){
+              toast(state.uiLang==='hi'?'इस टाइटल के लिए डब उपलब्ध नहीं है।':'No dub available for this title.');
+              return;
+            }
+            p.animeDub=wantDub;
+            localStorage.setItem('sv-anime-dub',wantDub?'1':'0');
+            box.querySelectorAll('.dub-opt').forEach((b)=>b.classList.toggle('active',b===btn));
+            p.animeAutoIdx=0; p.animeSourceId=AUTO_ID;
+            renderAnimeSourceChips();
+            loadAnimeStream(true);
+            toast(wantDub?(state.uiLang==='hi'?'डब ऑडियो':'Dubbed audio'):(state.uiLang==='hi'?'सब ऑडियो':'Subbed audio'));
+          };
+        });
+        label.appendChild(box);
+      }
+    }
+    const status=$('#audioTrackStatus');
+    if(status){status.className='audio-track-status confirmed';status.textContent=p.animeDub?'✓ DUB':'✓ SUB';}
+  }
+
   function restoreMoviePlayerChrome() {
     const sourceRow = $('#sourceChips') && $('#sourceChips').closest('.pc-row');
     if (sourceRow) sourceRow.classList.remove('anime-hidden');
@@ -2007,98 +2264,6 @@
     $('#pcEpisodes').classList.add('hidden');
   }
 
-  function playAnimeVideo(item) {
-    if (!item || !item.url) return;
-    const p = state.player;
-    if (item.kind !== 'trailer' || !item.embed) {
-      const tab = window.open(item.external || item.url, '_blank', 'noopener,noreferrer');
-      if (!tab) toast(t('officialPreview'));
-      return;
-    }
-    const frame = $('#playerFrame');
-    applyFramePolicy();
-    $('.player-fallback')?.remove();
-    showPlayerLoading(item.label || `${t('trailer')} · YouTube`);
-    $('#playerExt').href = item.external || item.url || '#';
-    const session = p.session;
-    frame.onload = () => {
-      setTimeout(() => {
-        if (p.active && p.session === session) { hidePlayerLoading(); schedulePlaybackSpeed(); }
-      }, 750);
-    };
-    frame.onerror = () => {
-      hidePlayerLoading();
-      toast(t('officialOptionsUnavailable'));
-    };
-    frame.src = 'about:blank';
-    window.setTimeout(() => {
-      if (p.active && p.session === session) frame.src = item.embed;
-    }, 40);
-    p.animeVideo.current = item;
-  }
-
-  function renderAnimePlayer(data) {
-    const p = state.player;
-    const sourceRow = $('#sourceChips').closest('.pc-row');
-    sourceRow.classList.add('anime-hidden');
-    $('#pcAudioControl').classList.add('anime-hidden'); $('#audioTrackStatus').classList.add('anime-hidden');
-    $('#playerAudioBtn').classList.add('anime-hidden');
-    $('#playerLanguagePop').classList.add('hidden');
-    $('#playerNextSrc').classList.add('anime-hidden');
-    $('#pcEpisodes').classList.remove('hidden');
-    $('#pcEpisodes').innerHTML = `
-      <div class="pc-label">
-        <span>${esc(t('animeVideo'))}</span>
-        <span class="pc-hint">${esc(t('officialPreview'))}</span>
-      </div>
-      <div class="ep-chips" id="epChips"></div>`;
-
-    const items = [];
-    if (data && data.trailer && data.trailer.id) {
-      const trailerId = encodeURIComponent(data.trailer.id);
-      const trailerUrl = data.trailer.url || `https://www.youtube.com/watch?v=${trailerId}`;
-      const youtubeEmbed=new URL(data.trailer.embed||`https://www.youtube-nocookie.com/embed/${trailerId}`);
-      youtubeEmbed.searchParams.set('autoplay','1'); youtubeEmbed.searchParams.set('rel','0');
-      youtubeEmbed.searchParams.set('modestbranding','1'); youtubeEmbed.searchParams.set('playsinline','1');
-      youtubeEmbed.searchParams.set('enablejsapi','1');
-      if(location.origin&&location.origin!=='null')youtubeEmbed.searchParams.set('origin',location.origin);
-      items.push({
-        kind:'trailer',label:`${t('trailer')} · YouTube`,title:t('trailer'),
-        url:trailerUrl,external:trailerUrl,embed:youtubeEmbed.toString(),
-      });
-    }
-    (data && data.episodes || []).forEach((ep, i) => items.push({
-      kind: 'episode', episodeNo: i + 1, label: `${ep.site || 'Official'} · ${ep.title || `Episode ${i + 1}`}`,
-      title: ep.title || `Episode ${i + 1}`, url: ep.url, external: ep.url, thumbnail: ep.thumbnail,
-    }));
-
-    const chips = $('#epChips');
-    items.forEach((item) => {
-      const button = document.createElement('button');
-      button.className = 'ep-chip anime-video-chip' + (item.kind === 'trailer' ? ' active' : '');
-      button.textContent = item.kind === 'trailer' ? t('trailer') : `E${item.episodeNo}`;
-      button.title = item.kind === 'trailer' ? item.label : `${item.label} · ${state.uiLang === 'hi' ? 'नई टैब में खुलेगा' : 'opens licensed site'}`;
-      button.onclick = () => {
-        if (item.kind === 'trailer') {
-          $$('#epChips .ep-chip').forEach((x) => x.classList.remove('active'));
-          button.classList.add('active');
-          playAnimeVideo(item);
-        } else {
-          window.open(item.external, '_blank', 'noopener,noreferrer');
-        }
-      };
-      chips.appendChild(button);
-    });
-
-    const trailer = items.find((item) => item.kind === 'trailer');
-    if (trailer) playAnimeVideo(trailer);
-    else {
-      if (!items.length) chips.innerHTML = `<span class="pc-hint anime-empty">${esc(t('noAnimePreview'))}</span>`;
-      renderAnimeFallback(data && data.title || p.title, p.animeId, data, p.animeSource);
-    }
-    renderOfficialAnimeLinks(data);
-  }
-
   function renderOfficialAnimeLinks(data) {
     const grid = $('#pcProviderGrid');
     const details = grid.closest('details');
@@ -2108,7 +2273,7 @@
       const summary = details.querySelector('summary');
       if (summary) summary.textContent = t('officialAnimeLinks');
     }
-    const providerLinks = (data && data.official || []).filter((x) => x && x.url);
+    const providerLinks=(data&&data.official||[]).filter((item)=>item&&item.url&&!/youtube/i.test(item.name||''));
     const episodeLinks = (data && data.episodes || []).filter((x) => x && x.url).slice(0, 8).map((x, i) => ({
       name: x.title || `Episode ${i + 1} · ${x.site || 'Official'}`, url: x.url,
     }));
@@ -2176,12 +2341,30 @@
     return reason;
   }
 
+  // User preference: recommendations can be hidden entirely while watching.
+  const recsHidden = () => localStorage.getItem('sv-hide-recs') === '1';
+  function setRecsHidden(hidden) {
+    localStorage.setItem('sv-hide-recs', hidden ? '1' : '0');
+    if (hidden) {
+      $('#playerInlineRecommendations')?.classList.add('hidden');
+      $('#playerStage')?.classList.remove('has-inline-recs');
+      $('#pcRecRow')?.classList.add('hidden');
+    } else if (state.player.active) {
+      // Re-fetch so the rows repopulate immediately instead of after a reload.
+      loadRecommendations(state.player);
+    }
+    // The "show" affordance only appears once recommendations are hidden.
+    $('#pcRecShowRow')?.classList.toggle('hidden', !hidden || !state.player.active);
+    const setSel = $('#setShowRecs');
+    if (setSel) setSel.value = hidden ? '0' : '1';
+  }
+
   function renderInlineRecommendationCards(items) {
     const wrap = $('#playerInlineRecommendations');
     const row = $('#playerInlineRecRow');
     const stage = $('#playerStage');
     row.innerHTML = '';
-    const clean = (items || []).filter(Boolean).slice(0, 7);
+    const clean = (recsHidden() ? [] : (items || [])).filter(Boolean).slice(0, 7);
     if (!clean.length) {
       wrap.classList.add('hidden');
       stage.classList.remove('has-inline-recs');
@@ -2220,7 +2403,7 @@
       c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); } };
       inner.appendChild(c);
     });
-    $('#pcRecRow').classList.remove('hidden');
+    $('#pcRecRow').classList.toggle('hidden', recsHidden());
     renderInlineRecommendationCards(clean);
   }
 
@@ -2298,7 +2481,6 @@
       <div class="pf-sub">${esc(t('animeUnavailableHelp'))}</div>
       <div class="pf-btns">
         ${official.map((x) => `<a class="btn btn-more" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>`).join('')}
-        <a class="btn btn-ghost" href="https://www.youtube.com/results?search_query=${encodeURIComponent((title || 'anime') + ' official trailer')}" target="_blank" rel="noopener">YouTube</a>
         ${animeId ? `<a class="btn btn-ghost" href="${catalogueUrl}" target="_blank" rel="noopener">${animeSource==='anilist'?'AniList':'MyAnimeList'}</a>` : ''}
       </div>`;
     $('#playerVideoWrap').appendChild(wrap);
@@ -2325,7 +2507,11 @@
     p.animeVideo = null;
   }
 
-  const TRUSTED_PLAYER_ORIGINS=new Set(['https://peachify.top','https://apiplayer.ru','https://vidcore.org','https://www.vidcore.org','https://www.youtube-nocookie.com']);
+  const TRUSTED_PLAYER_ORIGINS=new Set([
+    'https://apiplayer.ru','https://vidcore.org','https://www.vidcore.org',
+    'https://www.youtube-nocookie.com','https://megaplay.buzz','https://vidlink.pro',
+    'https://player.videasy.to','https://vidfast.vc','https://vidsrc.cc','https://vidsrc.to','https://vidsrc.su',
+  ]);
   window.addEventListener('message',(event)=>{
     const frame=$('#playerFrame');
     if(!state.player.active||!frame||event.source!==frame.contentWindow||!TRUSTED_PLAYER_ORIGINS.has(event.origin))return;
@@ -2378,6 +2564,35 @@
     const selected=event.target.options[event.target.selectedIndex];
     toast(event.target.value?t('audioPreference',{language:selected?.textContent||event.target.value.toUpperCase()}):t('audioDefault'));
   };
+  // Quality selector — reloads the stream so the provider honours the new cap.
+  const qualitySelect=$('#pcQuality');
+  if(qualitySelect){
+    qualitySelect.value=state.player.quality||'auto';
+    qualitySelect.onchange=(event)=>{
+      const value=QUALITY_VALUES.includes(event.target.value)?event.target.value:'auto';
+      state.player.quality=value;
+      localStorage.setItem('sv-quality',value);
+      const source=activeSource();
+      if(state.player.media==='anime'){
+        toast(state.uiLang==='hi'?'ऐनिमे प्लेयर में क्वालिटी वीडियो के अंदर चुनें।':'For anime, pick quality inside the video player.');
+        return;
+      }
+      if(source&&!source.qualitySelect){
+        // Prefer a provider that accepts a quality cap, otherwise say so plainly.
+        const capable=orderedSources().find((s)=>s.qualitySelect);
+        if(capable&&value!=='auto'){
+          state.player.source=capable.id; state.player.autoIdx=0;
+          renderSourceChips();
+          toast(state.uiLang==='hi'?`${capable.name} पर स्विच किया (क्वालिटी सपोर्ट)`:`Switched to ${capable.name} for quality control`);
+        }
+      }
+      state.player.autoIdx=0;
+      loadStream(true);
+      toast(value==='auto'
+        ?(state.uiLang==='hi'?'क्वालिटी: ऑटो':'Quality: Auto')
+        :(state.uiLang==='hi'?`क्वालिटी: ${value}p`:`Quality: ${value}p`));
+    };
+  }
   const speedSelect=$('#pcSpeed');
   speedSelect.value=String(state.player.speed||1);
   speedSelect.onchange=(event)=>{
@@ -2401,6 +2616,31 @@
     }
     toast(t('speedApplied',{speed}));
   };
+  function updateVoiceBoostButton(){
+    const button=$('#pcVoiceBoost');if(!button)return;
+    button.classList.toggle('active',Boolean(state.player.audioBoost));
+    button.setAttribute('aria-pressed',state.player.audioBoost?'true':'false');
+    button.textContent=state.player.audioBoost?`${t('voiceBoost')} ✓`:t('voiceBoost');
+  }
+  $('#pcVoiceBoost').onclick=()=>{
+    state.player.audioBoost=!state.player.audioBoost;
+    localStorage.setItem('sv-player-voice-boost',state.player.audioBoost?'1':'0');
+    updateVoiceBoostButton();
+    if(state.player.active&&state.player.media!=='anime'){
+      if(state.player.audioBoost&&activeSource().id!=='vidcore'){
+        state.player.source='vidcore';renderSourceChips();loadStream(true);
+      }else{
+        const frame=$('#playerFrame');
+        try{
+          frame.contentWindow.postMessage({action:'volume',value:1},'*');
+          frame.contentWindow.postMessage({action:'setAudioBoost',value:state.player.audioBoost},'*');
+          frame.contentWindow.postMessage({type:'AUDIO_BOOST',enabled:state.player.audioBoost},'*');
+        }catch(error){}
+      }
+    }
+    toast(state.player.audioBoost?t('voiceBoostOn'):t('voiceBoostOff'));
+  };
+
   $('#playerAudioBtn').onclick = (e) => {
     e.stopPropagation();
     renderPlayerLanguageOptions();
@@ -2412,7 +2652,7 @@
   });
   $('#pcReload').onclick = () => {
     loadStream(true);
-    toast(state.player.media === 'anime' ? t('officialPreview') : t('reload'));
+    toast(t('reload'));
   };
   $('#playerFs').onclick=()=>{
     const el=document.querySelector('#playerModal .player');
@@ -2426,11 +2666,24 @@
     }
   };
   $('#pcPrev').onclick=()=>{
-    const p=state.player; if(p.media!=='tv')return;
+    const p=state.player;
+    if(p.media==='anime'&&p.animeDirect){
+      if(p.animeEpisode>1){p.animeEpisode--;renderAnimeEpisodeChips();loadAnimeStream(true);}
+      return;
+    }
+    if(p.media!=='tv')return;
     if (p.episode>1){ p.episode--; renderEpisodeChips(); loadStream(); }
   };
   $('#pcNext').onclick=async()=>{
-    const p=state.player; if(p.media!=='tv')return;
+    const p=state.player;
+    if(p.media==='anime'&&p.animeDirect){
+      if(p.animeEpisode<Math.max(1,p.animeEpisodeCount)){
+        p.animeEpisode++;renderAnimeEpisodeChips();loadAnimeStream(true);
+        recordContinue({id:p.animeId,media_type:'anime',anime_source:p.animeSource,title:p.title,poster_path:p.backdrop||''},{animeSource:p.animeSource,episode:p.animeEpisode});
+      }
+      return;
+    }
+    if(p.media!=='tv')return;
     const idx=p.episodes.findIndex(e=>e.episode_number===p.episode);
     if (idx>=0 && idx<p.episodes.length-1) p.episode=p.episodes[idx+1].episode_number;
     else if (p.seasons.some(s=>s.season_number===p.season+1)) { p.season++; p.episode=1; renderSeasonSelect(); await loadPlayerEpisodes(); renderEpisodeChips(); }
@@ -2498,15 +2751,16 @@
   };
   $('#playerPlaylistAdd').onclick = () => {
     const p = state.player;
-    const id = p.media === 'anime' ? p.animeId : p.tmdbId;
-    if (!id) return;
-    openPlaylistModal({ id, media:p.media, animeSource:p.media === 'anime' ? p.animeSource : null, title:p.title, poster:p.backdrop||'', backdrop:p.backdrop||'', vote_average:0, release_date:'' });
+    const isAnime=p.catalogueMedia==='anime';
+    const id=isAnime?p.animeId:p.tmdbId;
+    if(!id)return;
+    openPlaylistModal({id,media:isAnime?'anime':p.media,animeSource:isAnime?p.animeSource:null,title:p.title,poster:p.backdrop||'',backdrop:p.backdrop||'',vote_average:0,release_date:''});
   };
 
   /* ================= LIVE TV ================= */
   function liveCategoryLabel(category) {
     if (state.uiLang !== 'hi') return category;
-    return ({ All:'सभी', News:'समाचार', Entertainment:'मनोरंजन', Movies:'फ़िल्में', Sports:'खेल', Kids:'बच्चे', Music:'संगीत', Education:'शिक्षा' })[category] || category;
+    return ({ All:'सभी', News:'समाचार', Entertainment:'मनोरंजन', Movies:'फ़िल्में', Sports:'खेल', Kids:'बच्चे', Music:'संगीत', Education:'शिक्षा', Spiritual:'आध्यात्मिक' })[category] || category;
   }
 
   function showLiveTV() {
@@ -2577,6 +2831,8 @@
     $('#liveMeta').textContent = t('connecting');
     destroyLive();
     state.live.currentChannel = channel;
+    $('#liveVoiceVolume').value=String(state.live.boostLevel||1.3);
+    setLiveAudioEnhancement(state.live.enhanced,true);
     const proxyUrl = '/api/hls?url=' + encodeURIComponent(channel.url);
 
     // Safari plays HLS natively; use the rewritten same-origin manifest so
@@ -2665,45 +2921,47 @@
     if (video) { try { video.pause(); video.removeAttribute('src'); video.load(); } catch(e){} }
   }
 
-  function setLiveAudioEnhancement(enabled) {
-    const live = state.live;
-    const video = $('#liveVideo');
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) throw new Error('Web Audio unavailable');
-      if (!live.audioContext) live.audioContext = new AudioContextClass();
-      if (!live.audioSource) {
-        live.audioSource = live.audioContext.createMediaElementSource(video);
-        live.compressor = live.audioContext.createDynamicsCompressor();
-        live.gain = live.audioContext.createGain();
-        live.audioSource.connect(live.compressor).connect(live.gain).connect(live.audioContext.destination);
+  function setLiveAudioEnhancement(enabled,silent=false) {
+    const live=state.live,video=$('#liveVideo');
+    try{
+      const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+      if(!AudioContextClass)throw new Error('Web Audio unavailable');
+      if(!live.audioContext)live.audioContext=new AudioContextClass();
+      if(!live.audioSource){
+        live.audioSource=live.audioContext.createMediaElementSource(video);
+        live.highpass=live.audioContext.createBiquadFilter(); live.highpass.type='highpass';
+        live.lowShelf=live.audioContext.createBiquadFilter(); live.lowShelf.type='lowshelf';
+        live.voiceEq=live.audioContext.createBiquadFilter(); live.voiceEq.type='peaking';
+        live.compressor=live.audioContext.createDynamicsCompressor(); live.gain=live.audioContext.createGain();
+        live.audioSource.connect(live.highpass).connect(live.lowShelf).connect(live.voiceEq).connect(live.compressor).connect(live.gain).connect(live.audioContext.destination);
       }
-      live.enhanced = Boolean(enabled);
-      if (live.enhanced) {
-        live.compressor.threshold.value = -28;
-        live.compressor.knee.value = 18;
-        live.compressor.ratio.value = 3.2;
-        live.compressor.attack.value = 0.008;
-        live.compressor.release.value = 0.22;
-        live.gain.gain.value = 1.08;
-      } else {
-        live.compressor.threshold.value = 0;
-        live.compressor.knee.value = 0;
-        live.compressor.ratio.value = 1;
-        live.gain.gain.value = 1;
+      live.enhanced=Boolean(enabled); localStorage.setItem('sv-live-enhance',live.enhanced?'1':'0');
+      if(live.enhanced){
+        live.highpass.frequency.value=82;
+        live.lowShelf.frequency.value=180; live.lowShelf.gain.value=-2.2;
+        live.voiceEq.frequency.value=2800; live.voiceEq.Q.value=.9; live.voiceEq.gain.value=4;
+        live.compressor.threshold.value=-30; live.compressor.knee.value=20; live.compressor.ratio.value=4.5;
+        live.compressor.attack.value=.006; live.compressor.release.value=.24;
+      }else{
+        live.highpass.frequency.value=20; live.lowShelf.gain.value=0; live.voiceEq.gain.value=0;
+        live.compressor.threshold.value=0; live.compressor.knee.value=0; live.compressor.ratio.value=1;
       }
+      live.gain.gain.value=Math.max(1,Math.min(1.5,Number(live.boostLevel)||1.3));
       live.audioContext.resume().catch(()=>{});
-      const button = $('#liveAudioEnhance');
-      button.classList.toggle('active', live.enhanced);
-      button.setAttribute('aria-pressed', live.enhanced ? 'true' : 'false');
-      button.textContent = live.enhanced
-        ? (state.uiLang==='hi'?'साफ़ ऑडियो ✓':'Clear audio ✓')
-        : t('clearAudio');
-      toast(live.enhanced ? t('audioEnhanced') : t('audioNormal'));
-    } catch (e) {
-      toast(state.uiLang==='hi'?'इस ब्राउज़र में ऑडियो सुधार उपलब्ध नहीं है।':'Audio enhancement is unavailable in this browser.');
+      const button=$('#liveAudioEnhance');
+      button.classList.toggle('active',live.enhanced);button.setAttribute('aria-pressed',live.enhanced?'true':'false');
+      button.textContent=live.enhanced?(state.uiLang==='hi'?'साफ़ व तेज़ आवाज़ ✓':'Clear voice ✓'):t('clearAudio');
+      if(!silent)toast(live.enhanced?t('audioEnhanced'):t('audioNormal'));
+    }catch(error){
+      if(!silent)toast(state.uiLang==='hi'?'इस ब्राउज़र में ऑडियो सुधार उपलब्ध नहीं है।':'Audio enhancement is unavailable in this browser.');
     }
   }
+  $('#liveVoiceVolume').onchange=(event)=>{
+    state.live.boostLevel=Math.max(1,Math.min(1.5,Number(event.target.value)||1));
+    localStorage.setItem('sv-live-voice-volume',String(state.live.boostLevel));
+    if(state.live.gain)state.live.gain.gain.value=state.live.boostLevel;
+    toast(`${t('voiceVolume')}: ${Math.round(state.live.boostLevel*100)}%`);
+  };
 
   $('#liveClose').onclick = () => {
     destroyLive(); $('#livePlayerModal').classList.add('hidden');
@@ -2767,14 +3025,36 @@
   }
   function refreshLocalizedContent() {
     applyUiLanguage();
+    // Re-render whichever view is on screen. Previously the results/browse
+    // views were skipped, so switching language left them in the old language.
     if (!$('#content').classList.contains('hidden')) loadHome();
     else if (!$('#mylistView').classList.contains('hidden')) renderMyList();
     else if (!$('#playlistsView').classList.contains('hidden')) renderPlaylists();
     else if (!$('#liveView').classList.contains('hidden')) { $('#liveChips').innerHTML=''; renderLiveChannels(); }
-    if (state.player.active && state.player.media !== 'anime') {
-      renderSourceChips();
-      if (state.player.details) populateAudioLanguages(state.player.details);
+    else if ($('#resultsView') && !$('#resultsView').classList.contains('hidden')) {
+      const route=(location.hash.replace('#','')||'').toLowerCase();
+      if(state.search.query) { doSearch(state.search.query); }
+      else if(['movies','tv','anime'].includes(route)) showResultsForNav(route);
+      else if(route==='drama') showDrama();
     }
+    // Re-render any open modal so its labels follow the new language too.
+    if ($('#detailModal') && !$('#detailModal').classList.contains('hidden') && state.detail) {
+      const d=state.detail;
+      if(d.media==='anime') openAnimeDetail(d.id,null,d.title,d.animeSource||'mal');
+      else if(d.id) openDetail(d.media,d.id,d.title);
+    }
+    if (state.player.active) {
+      if (state.player.media === 'anime' && state.player.animeDirect) {
+        renderAnimeSourceChips(); renderAnimeEpisodeChips();
+      } else {
+        renderSourceChips();
+        if (state.player.details) populateAudioLanguages(state.player.details);
+      }
+    }
+    const recShow=$('#pcRecShow');
+    if(recShow)recShow.textContent=t('showRecommendations');
+    const recCollapse=$('#pcRecCollapse');
+    if(recCollapse)recCollapse.textContent=$('#pcRecRow').classList.contains('collapsed')?t('expand'):t('collapse');
   }
   function refreshContentLocale() {
     if (!$('#content').classList.contains('hidden')) return;
@@ -2832,6 +3112,44 @@
       toast(audioSelect.value?t('audioPreference',{language:audioSelect.options[audioSelect.selectedIndex].textContent}):t('audioDefault'));
       if(state.player.active){populateAudioLanguages(state.player.details||{});renderSourceChips();loadStream(true);}
     };
+
+    // Default stream quality cap (mirrors the in-player selector).
+    const qualitySetting=$('#setQuality');
+    if(qualitySetting){
+      qualitySetting.value=state.player.quality||'auto';
+      qualitySetting.onchange=()=>{
+        const value=QUALITY_VALUES.includes(qualitySetting.value)?qualitySetting.value:'auto';
+        state.player.quality=value; localStorage.setItem('sv-quality',value);
+        const inPlayer=$('#pcQuality'); if(inPlayer)inPlayer.value=value;
+        toast(value==='auto'?t('quality')+': Auto':t('quality')+': '+value+'p');
+        if(state.player.active&&state.player.media!=='anime'){state.player.autoIdx=0;loadStream(true);}
+      };
+    }
+
+    // Anime sub/dub preference.
+    const animeAudioSetting=$('#setAnimeAudio');
+    if(animeAudioSetting){
+      animeAudioSetting.value=state.player.animeDub?'dub':'sub';
+      animeAudioSetting.onchange=()=>{
+        const wantDub=animeAudioSetting.value==='dub';
+        state.player.animeDub=wantDub; localStorage.setItem('sv-anime-dub',wantDub?'1':'0');
+        toast(wantDub?t('dubAudio'):t('subAudio'));
+        if(state.player.active&&state.player.media==='anime'&&state.player.animeDirect){
+          setupAnimePlayerChrome(); renderAnimeSourceChips(); state.player.animeAutoIdx=0; loadAnimeStream(true);
+        }
+      };
+    }
+
+    // Recommendations-while-watching preference.
+    const recsSetting=$('#setShowRecs');
+    if(recsSetting){
+      recsSetting.value=recsHidden()?'0':'1';
+      recsSetting.onchange=()=>{
+        const hide=recsSetting.value==='0';
+        setRecsHidden(hide);
+        toast(hide?t('recsHidden'):t('recsShown'));
+      };
+    }
 
     await ensureCountries();
     const countrySelect=$('#setCountry');
@@ -2991,6 +3309,20 @@
   $('#feedSwipeHint').onclick = scrollToRecommendations;
   $('#feedSwipeHint').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToRecommendations(); } };
   $('#inlineRecOpen').onclick = scrollToRecommendations;
+  // Hide / collapse recommendations while a video is playing
+  $('#inlineRecClose').onclick = () => {
+    setRecsHidden(true);
+    toast(state.uiLang === 'hi' ? 'सुझाव छिपा दिए गए (सेटिंग्स में वापस चालू करें)' : 'Recommendations hidden — re-enable in Settings');
+  };
+  $('#pcRecHide').onclick = () => {
+    setRecsHidden(true);
+    toast(state.uiLang === 'hi' ? 'सुझाव छिपा दिए गए' : 'Recommendations hidden');
+  };
+  $('#pcRecCollapse').onclick = () => {
+    const row = $('#pcRecRow');
+    const collapsed = row.classList.toggle('collapsed');
+    $('#pcRecCollapse').textContent = collapsed ? t('expand') : t('collapse');
+  };
 
   /* keyboard shortcuts */
   document.addEventListener('keydown',(e)=>{
@@ -3183,7 +3515,7 @@
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js?v=11.0.0').catch(() => {});
+      navigator.serviceWorker.register('/sw.js?v=11.1.0').catch(() => {});
     }, { once: true });
   }
 

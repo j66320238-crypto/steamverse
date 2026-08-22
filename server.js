@@ -1,5 +1,5 @@
 /* ============================================================
-   StreamVerse v11.0 — backend (Node.js, ZERO npm dependencies)
+   StreamVerse v11.1 — backend (Node.js, ZERO npm dependencies)
    Primary: TMDB (movies/TV), AniList (anime)
    Backup : Cinemeta (movies/TV), Jikan (anime), ipapi.co (geo)
    + stale-if-error cache, gzip/br compression, security headers
@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const crypto = require('crypto');
 
-const VERSION = '11.0.0';
+const VERSION = '12.0.0';
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
@@ -208,10 +208,14 @@ function alMediaToJikan(m) {
     year: m.seasonYear || (m.startDate && m.startDate.year) || null,
     type: m.format === 'MOVIE' ? 'Movie' : 'TV',
     status: m.status === 'RELEASING' ? 'Currently Airing' : m.status === 'FINISHED' ? 'Finished Airing' : (m.status || ''),
-    episodes: m.episodes || null,
+    // Currently-airing shows report `episodes: null` on AniList. Derive a
+    // usable count so the episode picker is not collapsed to a single item.
+    episodes: m.episodes
+      || (m.nextAiringEpisode && m.nextAiringEpisode.episode ? Math.max(1, m.nextAiringEpisode.episode - 1) : null)
+      || ((m.streamingEpisodes || []).length || null),
     synopsis: m.description || '',
     genres: (m.genres || []).map((g) => ({ name: g })),
-    trailer: m.trailer && String(m.trailer.site || '').toLowerCase() === 'youtube' ? { youtube_id: m.trailer.id } : null,
+    trailer: null,
     streamingEpisodes: (m.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e) => ({
       title: e.title || 'Official episode', thumbnail: e.thumbnail || '', url: e.url, site: e.site || 'Official',
     })),
@@ -232,7 +236,7 @@ const AL_LIST = `query ($page: Int, $sort: [MediaSort], $status: MediaStatus, $s
     media(type: ANIME, sort: $sort, status: $status, search: $search, genre: $genre, isAdult: false) {
       id idMal title { romaji english native } coverImage { extraLarge large }
       averageScore seasonYear startDate { year } episodes status format genres
-      trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
+      streamingEpisodes { title thumbnail url site } siteUrl
     }
   }
 }`;
@@ -240,13 +244,13 @@ const AL_DETAIL = `query ($id: Int, $idMal: Int) {
   Media(id: $id, idMal: $idMal, type: ANIME) {
     id idMal title { romaji english native } coverImage { extraLarge large } bannerImage
     description averageScore seasonYear startDate { year } episodes status format genres
-    trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
+    nextAiringEpisode { episode } streamingEpisodes { title thumbnail url site } siteUrl
   }
 }`;
 const AL_VIDEO = `query ($id: Int, $idMal: Int) {
   Media(id: $id, idMal: $idMal, type: ANIME) {
     id idMal title { romaji english native } coverImage { extraLarge large } bannerImage
-    trailer { id site thumbnail } streamingEpisodes { title thumbnail url site } siteUrl
+    streamingEpisodes { title thumbnail url site } siteUrl
   }
 }`;
 const AL_RECOMMENDATIONS = `query ($id: Int, $idMal: Int) {
@@ -269,18 +273,6 @@ function animeVars(id, source) {
   return source === 'anilist' ? { id: n } : { idMal: n };
 }
 
-function youtubeTrailer(id, thumbnail) {
-  if (!id) return null;
-  const key = encodeURIComponent(String(id));
-  return {
-    id: String(id),
-    site: 'YouTube',
-    thumbnail: thumbnail || `https://i.ytimg.com/vi/${key}/hqdefault.jpg`,
-    url: `https://www.youtube.com/watch?v=${key}`,
-    embed: `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
-  };
-}
-
 function animeTitle(m) {
   return (m && m.title && (m.title.english || m.title.romaji || m.title.native)) || 'Anime';
 }
@@ -295,9 +287,6 @@ function secureExternalUrl(value) {
 
 function normaliseAnimeVideos(m, id, source = 'mal', extra = {}) {
   const title = animeTitle(m);
-  const trailer = m && m.trailer && String(m.trailer.site || '').toLowerCase() === 'youtube'
-    ? youtubeTrailer(m.trailer.id, m.trailer.thumbnail)
-    : null;
   const episodes = (m && m.streamingEpisodes || []).filter((e) => e && e.url).slice(0, 40).map((e, i) => ({
     id: `${source}-${id}-${i + 1}`,
     title: e.title || `Official episode ${i + 1}`,
@@ -307,13 +296,12 @@ function normaliseAnimeVideos(m, id, source = 'mal', extra = {}) {
   const malId = (m && m.idMal) || (source === 'mal' ? Number(id) : null);
   const anilistId = (m && m.id) || (source === 'anilist' ? Number(id) : null);
   return {
-    ok: Boolean(trailer || episodes.length), source: 'AniList', id: Number(id), id_type: source,
+    ok: Boolean(episodes.length), source: 'AniList', id: Number(id), id_type: source,
     mal_id: malId || null, anilist_id: anilistId || null, title,
-    trailer, episodes,
+    trailer: null, episodes,
     official: [
       { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
       { name: 'Netflix', url: `https://www.netflix.com/search?q=${q}` },
-      { name: 'YouTube', url: `https://www.youtube.com/results?search_query=${q}+official+trailer` },
       ...(m && m.siteUrl ? [{ name: 'AniList', url: m.siteUrl }] : []),
       ...(malId ? [{ name: 'MyAnimeList', url: `https://myanimelist.net/anime/${malId}` }] : []),
     ],
@@ -333,54 +321,22 @@ async function animeVideosFromJikan(malId) {
   const a = result && result.data;
   if (!a) throw new Error('anime not found');
   const title = a.title_english || a.title || 'Anime';
-  const rawTrailer = a.trailer && (a.trailer.youtube_id || a.trailer.url || '');
-  const trailerId = a.trailer && a.trailer.youtube_id
-    ? a.trailer.youtube_id
-    : String(rawTrailer).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^?&/]+)/i)?.[1];
-  const media = {
-    idMal: Number(malId), title: { romaji: title }, siteUrl: a.url,
-    trailer: trailerId ? { id: trailerId, site: 'youtube', thumbnail: a.images && a.images.jpg && a.images.jpg.image_url } : null,
-    streamingEpisodes: [],
-  };
-  return normaliseAnimeVideos(media, malId, 'mal', { source: 'Jikan' });
+  return normaliseAnimeVideos({
+    idMal:Number(malId),title:{romaji:title},siteUrl:a.url,streamingEpisodes:[],
+  },malId,'mal',{source:'Jikan'});
 }
 
 async function animeVideos(id, source = 'mal') {
-  return cached(`anime:videos:${source}:${id}`, 30 * 60 * 1000, async () => {
-    try {
-      const primary = await animeVideosFromAniList(id, source);
-      // AniList occasionally has no trailer although TMDB has an official
-      // YouTube clip. Mapping is only a trailer fallback.
-      if (!primary.trailer && !primary.episodes.length && primary.mal_id) {
-        try {
-          const mapped = await animeToTmdb(primary.mal_id);
-          if (mapped && mapped.tmdb_id) {
-            const videos = await tmdb(`/${mapped.media}/${mapped.tmdb_id}/videos`, { language: 'en-US' }, 30 * 24 * 60 * 60 * 1000);
-            const clip = (videos.results || []).find((v) => String(v.site).toLowerCase() === 'youtube' && /trailer|teaser|clip/i.test(v.type || v.name || ''))
-              || (videos.results || []).find((v) => String(v.site).toLowerCase() === 'youtube');
-            if (clip && clip.key) {
-              primary.trailer = youtubeTrailer(clip.key);
-              primary.ok = true;
-              primary.source = 'AniList + TMDB trailer fallback';
-            }
-          }
-        } catch (e) { /* official links below remain available */ }
-      }
-      return primary;
-    } catch (primaryError) {
+  return cached(`anime:videos:no-trailer:${source}:${id}`, 30 * 60 * 1000, async () => {
+    try { return await animeVideosFromAniList(id, source); }
+    catch (primaryError) {
       if (source === 'mal') {
         try { return await animeVideosFromJikan(id); } catch (backupError) { /* fall through */ }
       }
-      const q = encodeURIComponent('anime');
       return {
-        ok: false, source: 'unavailable', id: Number(id), id_type: source,
-        mal_id: source === 'mal' ? Number(id) : null,
-        anilist_id: source === 'anilist' ? Number(id) : null,
-        title: 'Anime', trailer: null, episodes: [],
-        official: [
-          { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${q}` },
-          { name: 'YouTube', url: `https://www.youtube.com/results?search_query=${q}+official+trailer` },
-        ],
+        ok:false,source:'unavailable',id:Number(id),id_type:source,
+        mal_id:source==='mal'?Number(id):null,anilist_id:source==='anilist'?Number(id):null,
+        title:'Anime',trailer:null,episodes:[],official:[],
       };
     }
   });
@@ -956,6 +912,7 @@ const HLS_ALLOWED_SUFFIXES = [
   '.springcpc.com', '.cloudfront.net', '.samsung.wurl.tv', '.skycdp.com',
   '.stackpathdns.com', '.wizdeo.io', '.luxeat.lu', '.cloudycdn.services',
   '.intoday.in', '.akamaihd.net', '.trt.com.tr', '.wiseplayout.com',
+  '.shemaroo.com', '.thelegitpro.in',
 ];
 const HLS_ALLOWED_EXACT = new Set([
   '103.225.189.136',
@@ -1151,7 +1108,9 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "connect-src 'self' https://api.themoviedb.org https://api.jikan.moe https://graphql.anilist.co",
+  // blob: is required because player SDKs (Vidstack et al.) fetch subtitle
+  // tracks through blob URLs; https: covers HLS manifests from live channels.
+  "connect-src 'self' blob: data: https: https://api.themoviedb.org https://api.jikan.moe https://graphql.anilist.co",
   "frame-src https:",
   "worker-src 'self' blob:",
   "form-action 'self'",

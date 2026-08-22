@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://image.tmdb.org" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-192.png" />
-<link rel="stylesheet" href="style.css?v=11.0.0" />
+<link rel="stylesheet" href="style.css?v=12.0.0" />
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="skipContent">Skip to content</a>
@@ -226,7 +226,7 @@
   </div>
   <p class="footer-brand">STREAMVERSE</p>
   <p data-i18n="footerTagline">Movies · TV Shows · Anime · Dramas · Live TV · Playlists</p>
-  <p class="footer-meta">Metadata &amp; imagery: TMDB, AniList and Jikan. Anime previews use official YouTube/AniList links; live channels use public HLS streams. StreamVerse does not host video files.</p>
+  <p class="footer-meta">Metadata &amp; imagery: TMDB, AniList and Jikan. Anime uses the regular title player when a matching TMDB entry exists; live channels use public HLS streams. StreamVerse does not host video files.</p>
   <nav class="footer-links" aria-label="Footer">
     <a href="#" data-nav="home" data-i18n="home">Home</a>
     <a href="#" data-nav="movies" data-i18n="movies">Movies</a>
@@ -303,7 +303,10 @@
       <div class="player-inline-recommendations hidden" id="playerInlineRecommendations" aria-label="Recommended videos below the player">
         <div class="inline-rec-head">
           <div><span class="inline-rec-kicker">NEXT UP</span><strong data-i18n="recommended">Recommended for you</strong></div>
-          <button class="inline-rec-open" id="inlineRecOpen" type="button" data-i18n="seeAllUp">See all ↑</button>
+          <span class="inline-rec-head-actions">
+            <button class="inline-rec-open" id="inlineRecOpen" type="button" data-i18n="seeAllUp">See all ↑</button>
+            <button class="inline-rec-close" id="inlineRecClose" type="button" aria-label="Hide recommendations" title="Hide">✕</button>
+          </span>
         </div>
         <div class="inline-rec-row" id="playerInlineRecRow"></div>
       </div>
@@ -337,6 +340,17 @@
               <option value="hi">Hindi</option>
             </select>
           </label>
+          <label class="lc-ctl" id="pcQualityControl">
+            <span data-i18n="quality">Quality</span>
+            <select id="pcQuality" class="pc-select" aria-label="Video quality">
+              <option value="auto">Auto</option>
+              <option value="2160">4K · 2160p</option>
+              <option value="1080">Full HD · 1080p</option>
+              <option value="720">HD · 720p</option>
+              <option value="480">SD · 480p</option>
+              <option value="360">Low · 360p</option>
+            </select>
+          </label>
           <label class="lc-ctl" id="pcSpeedControl">
             <span data-i18n="playbackSpeed">Playback speed</span>
             <select id="pcSpeed" class="pc-select" aria-label="Playback speed">
@@ -348,6 +362,7 @@
               <option value="2">2×</option>
             </select>
           </label>
+          <button class="btn btn-ghost sm voice-boost-btn" id="pcVoiceBoost" data-i18n="voiceBoost">Voice Boost</button>
           <span class="audio-track-status" id="audioTrackStatus"></span>
           <button class="btn btn-ghost sm" id="pcReload" title="Reload player" data-i18n="reload">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -357,8 +372,18 @@
       </div>
 
       <div class="pc-row pc-rec-row hidden" id="pcRecRow">
-        <div class="pc-sources-label" data-i18n="youMayLike">You may also like</div>
+        <div class="pc-sources-label rec-head-row">
+          <span data-i18n="youMayLike">You may also like</span>
+          <span class="rec-head-actions">
+            <button type="button" class="rec-toggle-btn" id="pcRecCollapse" data-i18n="collapse">Collapse</button>
+            <button type="button" class="rec-toggle-btn" id="pcRecHide" data-i18n="hide">Hide</button>
+          </span>
+        </div>
         <div class="rec-row" id="pcRecRowInner"></div>
+      </div>
+
+      <div class="pc-row hidden" id="pcRecShowRow">
+        <button type="button" class="rec-toggle-btn" id="pcRecShow" data-i18n="showRecommendations">Show recommendations</button>
       </div>
 
       <div class="pc-episodes hidden" id="pcEpisodes">
@@ -431,6 +456,15 @@
           <span data-i18n="quality">Quality</span>
           <select id="liveQuality" class="pc-select"><option value="-1">Auto</option></select>
         </label>
+        <label class="lc-ctl">
+          <span data-i18n="voiceVolume">Voice Volume</span>
+          <select id="liveVoiceVolume" class="pc-select">
+            <option value="1">100%</option>
+            <option value="1.15">115%</option>
+            <option value="1.3" selected>130%</option>
+            <option value="1.5">150%</option>
+          </select>
+        </label>
         <button class="btn btn-ghost sm" id="liveMute">
           <svg id="liveMuteIcon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
           <span id="liveMuteText" data-i18n="mute">Mute</span>
@@ -477,6 +511,35 @@
           <option value="te">Telugu</option>
         </select>
         <span class="tiny-note" data-i18n="audioPreferenceSettingNote">Requests this audio from compatible players; unavailable dubs cannot be created by the site.</span>
+      </div>
+
+      <div class="setting-row">
+        <label for="setQuality" data-i18n="quality">Quality</label>
+        <select id="setQuality" class="sv-select">
+          <option value="auto">Auto</option>
+          <option value="2160">4K · 2160p</option>
+          <option value="1080">Full HD · 1080p</option>
+          <option value="720">HD · 720p</option>
+          <option value="480">SD · 480p</option>
+          <option value="360">Low · 360p</option>
+        </select>
+        <span class="tiny-note" data-i18n="qualityNote">Applied on players that support a quality cap.</span>
+      </div>
+
+      <div class="setting-row">
+        <label for="setAnimeAudio" data-i18n="animeAudio">Anime audio</label>
+        <select id="setAnimeAudio" class="sv-select">
+          <option value="sub">Subbed (original Japanese)</option>
+          <option value="dub">Dubbed</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <label for="setShowRecs" data-i18n="recommendationsSetting">Recommendations while watching</label>
+        <select id="setShowRecs" class="sv-select">
+          <option value="1">Show</option>
+          <option value="0">Hide</option>
+        </select>
       </div>
 
       <div class="setting-row">
@@ -582,6 +645,6 @@
 </button>
 
 <noscript><div class="noscript">JavaScript is required to use StreamVerse.</div></noscript>
-<script src="app.js?v=11.0.0" defer></script>
+<script src="app.js?v=12.0.0" defer></script>
 </body>
 </html>

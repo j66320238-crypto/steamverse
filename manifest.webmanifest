@@ -1,17 +1,25 @@
 {
-  "name": "StreamVerse",
+  "name": "StreamVerse — Movies, TV, Anime & Live TV",
   "short_name": "StreamVerse",
-  "description": "Movies, TV shows, anime and public live TV discovery.",
-  "start_url": "/#home",
+  "description": "Discover and watch movies, TV shows, anime and live channels.",
+  "id": "/",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#07070c",
-  "theme_color": "#07070c",
+  "background_color": "#0b0b0f",
+  "theme_color": "#e50914",
+  "categories": ["entertainment", "video"],
   "lang": "en",
-  "categories": ["entertainment", "lifestyle"],
+  "dir": "ltr",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Live TV", "url": "/#live" },
+    { "name": "Anime", "url": "/#anime" },
+    { "name": "My List", "url": "/#mylist" }
   ]
 }

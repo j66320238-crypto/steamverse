@@ -2,20 +2,25 @@ services:
   - type: web
     name: streamverse
     runtime: node
-    plan: free
+    plan: starter
     region: singapore
-    buildCommand: npm ci --omit=dev
+    branch: main
+    buildCommand: npm ci --omit=dev || npm install --omit=dev
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: NODE_VERSION
-        value: 22.18.0
+        value: "20"
+      # Set the real value in the Render dashboard — never commit the key.
       - key: TMDB_KEY
         sync: false
       - key: WATCH_REGION
         value: IN
+      - key: CACHE_MAX_ITEMS
+        value: "900"
+      # Generated once by Render; used to authorise POST /api/admin/cache/clear.
       - key: ADMIN_CACHE_TOKEN
         generateValue: true
-      - key: CACHE_MAX_ITEMS
-        value: 900
